@@ -81,10 +81,10 @@ use _runtime::{
 // ...
 
 fn testnet_genesis(...) -> GenesisConfig {
-    let authorized_accounts = initial_authorities
-        .iter()
-        .map(|authority| authority.0.clone())
-        .collect::<Vec<_>>();
+    let authorized_accounts = vec![
+        get_account_id_from_seed("Alice"),
+        get_account_id_from_seed("Bob"),
+    ]
 
     // Create initial access controls including the AccessControl Pallet
     let access_control_structs = vec![
