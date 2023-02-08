@@ -145,8 +145,7 @@ pub mod pallet {
             The caller must have permissions to update the c
             pallet_name: Vec<u8> | "PalletTemplate"
             pallet_extrinsic: Vec<u8> | "do_something"
-            permission: Permission | `Execute` or `Manage`
-
+            permission: Permission | "Execute" or "Manage"
             When the Manage permission has not been created, only an sudo can add execution accounts
         */
         #[pallet::call_index(0)]
