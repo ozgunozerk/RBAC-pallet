@@ -13,6 +13,8 @@ pub trait VerifyAccess<AccountId> {
     fn verify_execute_access(
         account_id: AccountId,
         pallet: Vec<u8>,
-        function: Vec<u8>,
+        extrinsic: Vec<u8>,
     ) -> Result<(), TraitError>;
+
+    fn accessors(pallet: Vec<u8>, extrinsic: Vec<u8>) -> Option<Vec<AccountId>>;
 }

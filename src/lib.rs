@@ -380,6 +380,16 @@ impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
             Err(_e) => Err(TraitError::AccessDenied),
         }
     }
+
+    fn accessors(pallet: Vec<u8>, extrinsic: Vec<u8>) -> Option<Vec<T::AccountId>> {
+        let key = AccessControl {
+            pallet,
+            extrinsic,
+            permission: Permission::Execute,
+        };
+
+        Self::access_controls(key)
+    }
 }
 
 /// The following section implements the `SignedExtension` trait
