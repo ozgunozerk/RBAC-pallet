@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "access-control"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
