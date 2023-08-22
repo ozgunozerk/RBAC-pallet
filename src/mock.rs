@@ -61,7 +61,7 @@ impl access_control::Config for Test {
 
 pub struct WithAccessControlContext {
     pub admins: Vec<AccountId>,
-    pub access_controls: Vec<(access_control::AccessControl, Vec<AccountId>)>,
+    pub access_controls: Vec<(access_control::Action, Vec<AccountId>)>,
 }
 
 impl TestContext for WithAccessControlContext {
@@ -70,24 +70,24 @@ impl TestContext for WithAccessControlContext {
         let admin_account = new_account();
 
         // Seed AccessControls for executing the extrinsic `create_access_control`.
-        let execute_access_control = access_control::AccessControl {
+        let execute_action = access_control::Action {
             pallet: pallet_name(),
-            extrinsic: create_access_control(),
+            extrinsic: extrinsic_name(),
             permission: access_control::Permission::Execute,
         };
 
         // Seed AccessControls for managing the extrinsic `create_access_control`.
-        let manage_access_control = access_control::AccessControl {
+        let manage_action = access_control::Action {
             pallet: pallet_name(),
-            extrinsic: create_access_control(),
+            extrinsic: extrinsic_name(),
             permission: access_control::Permission::Manage,
         };
 
         WithAccessControlContext {
             admins: vec![admin_account],
             access_controls: vec![
-                (execute_access_control, vec![admin_account]),
-                (manage_access_control, vec![admin_account]),
+                (execute_action, vec![admin_account]),
+                (manage_action, vec![admin_account]),
             ],
         }
     }
@@ -103,7 +103,7 @@ pub fn pallet_name() -> Vec<u8> {
     "AccessControl".as_bytes().to_vec()
 }
 
-pub fn create_access_control() -> Vec<u8> {
+pub fn extrinsic_name() -> Vec<u8> {
     "create_access_control".as_bytes().to_vec()
 }
 
@@ -117,13 +117,15 @@ pub fn new_account() -> sp_core::sr25519::Public {
 }
 
 // Build genesis storage according to the mock runtime.
-pub fn new_test_ext(access_controls: &mut WithAccessControlContext) -> sp_io::TestExternalities {
+pub fn new_test_ext(
+    access_controls_ctx: &mut WithAccessControlContext,
+) -> sp_io::TestExternalities {
     let mut t = frame_system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
     let genesis = access_control::GenesisConfig::<Test> {
-        admins: access_controls.admins.clone(),
-        access_controls: access_controls.access_controls.clone(),
+        admins: access_controls_ctx.admins.clone(),
+        access_controls: access_controls_ctx.access_controls.clone(),
     };
     genesis.assimilate_storage(&mut t).unwrap();
     t.into()
