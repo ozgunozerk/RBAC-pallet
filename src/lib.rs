@@ -132,6 +132,7 @@ pub mod pallet {
     #[pallet::event]
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
+        ActionCreated(Vec<u8>, Vec<u8>),
         AccessRevoked(T::AccountId, Vec<u8>, Vec<u8>),
         AccessGranted(T::AccountId, Vec<u8>, Vec<u8>),
         AdminAdded(T::AccountId),
@@ -190,8 +191,8 @@ pub mod pallet {
             };
 
             let manage_action = Action {
-                pallet: pallet_name,
-                extrinsic: pallet_extrinsic,
+                pallet: pallet_name.clone(),
+                extrinsic: pallet_extrinsic.clone(),
                 permission: Permission::Manage,
             };
 
@@ -199,6 +200,8 @@ pub mod pallet {
                 Some(account) => vec![account],
                 None => vec![],
             };
+
+            Self::deposit_event(Event::ActionCreated(pallet_name, pallet_extrinsic));
 
             AccessControls::<T>::insert(execute_action, accounts.clone());
             AccessControls::<T>::insert(manage_action, accounts);
@@ -334,17 +337,11 @@ impl<T: Config> Pallet<T> {
      Access is denied when then a pallet and an extrinsic has a access_control, and the account does not have permission to execute.
     */
     pub fn verify_execute_access(
-        account_id: T::AccountId,
+        signer: T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), Error<T>> {
-        let action = Action {
-            pallet,
-            extrinsic,
-            permission: Permission::Execute,
-        };
-
-        Self::verify_access(account_id, action)
+        Self::verify_access(signer, pallet, extrinsic, Permission::Execute)
     }
 
     /** Verify the ability to manage the access to a pallets extrinsics.
@@ -355,17 +352,22 @@ impl<T: Config> Pallet<T> {
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), Error<T>> {
-        let action = Action {
-            pallet,
-            extrinsic,
-            permission: Permission::Manage,
-        };
-
-        Self::verify_access(signer, action)
+        Self::verify_access(signer, pallet, extrinsic, Permission::Manage)
     }
 
     /** Private helper method for access authentication */
-    fn verify_access(signer: T::AccountId, action: Action) -> Result<(), Error<T>> {
+    fn verify_access(
+        signer: T::AccountId,
+        pallet: Vec<u8>,
+        extrinsic: Vec<u8>,
+        permission: Permission,
+    ) -> Result<(), Error<T>> {
+        let action = Action {
+            pallet,
+            extrinsic,
+            permission,
+        };
+
         match <AccessControls<T>>::get(&action) {
             Some(accounts) => {
                 if accounts.contains(&signer) {
