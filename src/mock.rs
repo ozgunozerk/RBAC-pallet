@@ -61,7 +61,7 @@ impl access_control::Config for Test {
 
 pub struct WithAccessControlContext {
     pub admins: Vec<AccountId>,
-    pub access_controls: Vec<(access_control::Action, Vec<AccountId>)>,
+    pub access_controls: Vec<access_control::AccessControl<AccountId>>,
 }
 
 impl TestContext for WithAccessControlContext {
@@ -86,8 +86,14 @@ impl TestContext for WithAccessControlContext {
         WithAccessControlContext {
             admins: vec![admin_account],
             access_controls: vec![
-                (execute_action, vec![admin_account]),
-                (manage_action, vec![admin_account]),
+                access_control::AccessControl {
+                    action: execute_action,
+                    accounts: vec![admin_account],
+                },
+                access_control::AccessControl {
+                    action: manage_action,
+                    accounts: vec![admin_account],
+                },
             ],
         }
     }

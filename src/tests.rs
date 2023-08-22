@@ -88,7 +88,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_add = mock::new_account();
         let unauthorized_signer = RuntimeOrigin::signed(account_to_add);
-        let action = ctx.access_controls.first().unwrap().0.clone();
+        let action = ctx.access_controls.first().unwrap().action.clone();
 
         let new_action = access_control::Action {
             pallet: mock::pallet_name(),
@@ -143,7 +143,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
 fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_add = mock::new_account();
-        let action = ctx.access_controls.first().unwrap().0.clone();
+        let action = ctx.access_controls.first().unwrap().action.clone();
 
         assert_ok!(AccessControl::grant_access(
             RuntimeOrigin::root(),

@@ -55,6 +55,13 @@ pub struct Action {
     pub permission: Permission,
 }
 
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct AccessControl<T> {
+    action: Action,
+    accounts: Vec<T>,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -92,7 +99,7 @@ pub mod pallet {
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub admins: Vec<T::AccountId>,
-        pub access_controls: Vec<(Action, Vec<T::AccountId>)>,
+        pub access_controls: Vec<AccessControl<T::AccountId>>,
     }
 
     #[cfg(feature = "std")]
@@ -114,7 +121,10 @@ pub mod pallet {
             }
 
             for access_control in &self.access_controls {
-                <AccessControls<T>>::insert(access_control.0.clone(), access_control.1.clone());
+                <AccessControls<T>>::insert(
+                    access_control.action.clone(),
+                    access_control.accounts.clone(),
+                );
             }
         }
     }
