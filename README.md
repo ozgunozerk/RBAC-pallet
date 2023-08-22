@@ -1,5 +1,6 @@
 # Substrate Access Control Pallet
-Fork from [substrate-rbac](https://github.com/gautamdhameja/substrate-rbac)
+Forked from [access-control](https://github.com/WunderbarNetwork/access-control)
+Which is another fork from [substrate-rbac](https://github.com/gautamdhameja/substrate-rbac)
 
 A [Substrate](https://github.com/paritytech/substrate) pallet implementing access controls and permissions for Substrate extrinsic calls.
 
@@ -32,10 +33,10 @@ impl access_control::Config for Runtime {
 // ...
 
 // Add access_control to create_transaction function
-fn create_transaction(...) -> Option<(...)> { 
+fn create_transaction(...) -> Option<(...)> {
     // ...
 
-    let extra = ( 
+    let extra = (
         // ...
         access_control::Authorize::<Runtime>::new(),
     );
@@ -73,7 +74,7 @@ pub type SignedExtra = (
 /// node/src/chain_spec.rs
 
 // Import access_control and AccessControlConfig from the runtime
-use _runtime::{ 
+use _runtime::{
     // ...
     access_control, AccessControlConfig
 }
@@ -87,31 +88,26 @@ fn testnet_genesis(...) -> GenesisConfig {
     ]
 
     // Create initial access controls including the AccessControl Pallet
-    let access_control_structs = vec![
+    let actions = vec![
             // Create both Execute and Manage controls for the AccessControl Pallets `create_access_control` extrinsic.
-            access_control::AccessControl {
+            access_control::Action {
                 pallet: "AccessControl".as_bytes().to_vec(),
                 extrinsic: "create_access_control".as_bytes().to_vec(),
-                permission: access_control::Permission::Execute,
             },
-            access_control::AccessControl {
-                pallet: "AccessControl".as_bytes().to_vec(),
-                extrinsic: "create_access_control".as_bytes().to_vec(),
-                permission: access_control::Permission::Manage,
-            },
-            // ... additional AccessControls ...
+
+            // ... additional Actions ...
     ];
 
-    // Create the tuple of access controls and accounts who can action.
-	let access_controls: Vec<(access_control::AccessControl, Vec<AccountId>)> =
-		access_control_structs
+    // Create the AccessControl struct for access controls and accounts who can action.
+	let access_controls: Vec<AccessControl<AccountId>> =
+        actions
 			.iter()
-			.map(|access_control| (access_control.clone(), authorized_accounts.clone()))
+			.map(|action| (action.clone(), authorized_accounts.clone()))
 			.collect::<Vec<_>>();
 
     // ...
 
-    GenesisConfig { 
+    GenesisConfig {
         /// ...
         access_control: AccessControlConfig { admins: authorized_accounts.clone() , access_controls }
     }
@@ -163,7 +159,7 @@ fn do_something(origin: OriginFor<T>) -> DispatchResult {
 }
 ```
 
-### Followed by runtime compilation 
+### Followed by runtime compilation
 
 ```bash
 cargo build --release
