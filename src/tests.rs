@@ -84,6 +84,100 @@ fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
 
 #[test_context(WithAccessControlContext)]
 #[test]
+fn delete_action(ctx: &mut WithAccessControlContext) {
+    new_test_ext(ctx).execute_with(|| {
+        let account_to_add = mock::new_account();
+        let action = ctx.access_controls.first().unwrap().action.clone();
+
+        let new_action = access_control::Action {
+            pallet: mock::pallet_name(),
+            extrinsic: mock::fake_extrinsic(),
+            permission: access_control::Permission::Execute,
+        };
+
+        // Add the new account to the admins who can create access controls
+        assert_ok!(AccessControl::grant_access(
+            ctx.admin_signer(),
+            account_to_add,
+            action.clone()
+        ));
+
+        // ensure that the new account is now able to create access controls
+        assert_ok!(AccessControl::create_access_control(
+            RuntimeOrigin::signed(account_to_add),
+            new_action.pallet.clone(),
+            new_action.extrinsic.clone(),
+        ));
+
+        assert_eq!(
+            AccessControl::access_controls(new_action.clone()),
+            Some(vec![account_to_add])
+        );
+
+        // creator of the action should be able to delete the action itself
+        assert_ok!(AccessControl::delete_access_control(
+            RuntimeOrigin::signed(account_to_add),
+            new_action.pallet.clone(),
+            new_action.extrinsic.clone(),
+        ));
+
+        assert_eq!(AccessControl::access_controls(new_action), None);
+    });
+}
+
+#[test_context(WithAccessControlContext)]
+#[test]
+fn delete_action_unauthorized(ctx: &mut WithAccessControlContext) {
+    new_test_ext(ctx).execute_with(|| {
+        let account_to_add = mock::new_account();
+        let unauthorized_signer = RuntimeOrigin::signed(mock::new_account());
+        let action = ctx.access_controls.first().unwrap().action.clone();
+
+        let new_action = access_control::Action {
+            pallet: mock::pallet_name(),
+            extrinsic: mock::fake_extrinsic(),
+            permission: access_control::Permission::Execute,
+        };
+
+        // Add the new account to the admins who can create access controls
+        assert_ok!(AccessControl::grant_access(
+            ctx.admin_signer(),
+            account_to_add,
+            action.clone()
+        ));
+
+        // ensure that the new account is now able to create access controls
+        assert_ok!(AccessControl::create_access_control(
+            RuntimeOrigin::signed(account_to_add),
+            new_action.pallet.clone(),
+            new_action.extrinsic.clone(),
+        ));
+
+        assert_eq!(
+            AccessControl::access_controls(new_action.clone()),
+            Some(vec![account_to_add])
+        );
+
+        // without necessary privileges, one should not be able to delete the action
+        assert_noop!(
+            AccessControl::delete_access_control(
+                unauthorized_signer,
+                new_action.pallet.clone(),
+                new_action.extrinsic.clone(),
+            ),
+            Error::<Test>::AccessDenied
+        );
+
+        // action should be still intact
+        assert_eq!(
+            AccessControl::access_controls(new_action),
+            Some(vec![account_to_add])
+        );
+    });
+}
+
+#[test_context(WithAccessControlContext)]
+#[test]
 fn assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_add = mock::new_account();
