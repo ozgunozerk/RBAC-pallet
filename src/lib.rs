@@ -31,6 +31,9 @@ use sp_runtime::{
 use sp_std::prelude::*;
 use traits::{TraitError, VerifyAccess};
 
+/// We have 2 permissions:
+/// - `execute` is for being able to call the extrinsic
+/// - `manage` is for being able to assign accounts to `execute` and `manage`
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Permission {
@@ -39,6 +42,8 @@ pub enum Permission {
     Manage,
 }
 
+/// Actions are extrinsics, that are callable from pallets
+/// each action also has the permission field [`Permission`]
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct Action {
@@ -47,6 +52,7 @@ pub struct Action {
     pub permission: Permission,
 }
 
+/// AccessControl is defined via a permission action, and the users with privileges
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct AccessControl<T> {
@@ -54,6 +60,12 @@ pub struct AccessControl<T> {
     accounts: Vec<T>,
 }
 
+/// RBAC pallet
+///
+/// that can create/remove the following:
+/// - actions
+/// - permissions
+/// - admins
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -77,17 +89,18 @@ pub mod pallet {
     #[pallet::without_storage_info]
     pub struct Pallet<T>(_);
 
-    /** Admins who manage the assignment of access */
+    /// Admins who manage the assignment of access
     #[pallet::storage]
     #[pallet::getter(fn admins)]
     pub type Admins<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, ()>;
 
-    /** Store access controls for Executing and managing a specific extrinsic on a pallet. */
+    /// Store access controls for Executing and managing a specific extrinsic on a pallet.
     #[pallet::storage]
     #[pallet::getter(fn access_controls)]
     pub type AccessControls<T: Config> =
         StorageMap<_, Blake2_128Concat, Action, Vec<T::AccountId>, OptionQuery>;
 
+    /// Config for genesis that will bootstrap other permissions
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
         pub admins: Vec<T::AccountId>,
@@ -152,7 +165,6 @@ pub mod pallet {
             pallet_name: Vec<u8>,
             pallet_extrinsic: Vec<u8>,
         ) -> DispatchResult {
-            // Check Authorization
             let maybe_account = match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
                     log::info!("Admin privileges recognized");
@@ -209,7 +221,6 @@ pub mod pallet {
             pallet_name: Vec<u8>,
             pallet_extrinsic: Vec<u8>,
         ) -> DispatchResult {
-            // Check Authorization
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
                     log::info!("Admin privileges recognized");
@@ -261,7 +272,6 @@ pub mod pallet {
             account_id: T::AccountId,
             action: Action,
         ) -> DispatchResult {
-            // Check Authorization
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
                     log::info!("Admin privileges recognized");
@@ -309,7 +319,6 @@ pub mod pallet {
             account_id: T::AccountId,
             action: Action,
         ) -> DispatchResult {
-            // Check Authorization
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
                     log::info!("Admin privileges recognized");
@@ -351,7 +360,7 @@ pub mod pallet {
         /// Add a new Super Admin.
         /// Admins have access to execute and manage all pallets.
         ///
-        /// Only _root_ can add a Admin.
+        /// Only _root_ and Admins can add an Admin.
         #[pallet::call_index(4)]
         #[pallet::weight(10_000_000)]
         pub fn add_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
@@ -362,6 +371,9 @@ pub mod pallet {
             Ok(())
         }
 
+        /// Revokes admin privileges
+        ///
+        /// Only _root_ and Admins can revoke an admin privilege
         #[pallet::call_index(5)]
         #[pallet::weight(10_000_000)]
         pub fn revoke_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
@@ -375,10 +387,11 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    /** Verify that account can execute an extrinsic on a pallet.
-     All Pallet extrinsics work as normal when it does not have a access_control created for it.
-     Access is denied when then a pallet and an extrinsic has a access_control, and the account does not have permission to execute.
-    */
+    /// Verify that account can execute an extrinsic on a pallet.
+    /// Access is denied when then a pallet and an extrinsic has a access_control,
+    /// and the account does not have permission to execute.
+    /// _root_, Admins will bypass this check,
+    /// people in the `execute` group can pass this verification
     pub fn verify_execute_access(
         signer: T::AccountId,
         pallet: Vec<u8>,
@@ -387,9 +400,10 @@ impl<T: Config> Pallet<T> {
         Self::verify_access(signer, pallet, extrinsic, Permission::Execute)
     }
 
-    /** Verify the ability to manage the access to a pallets extrinsics.
-     The user must either be an Admin or have the Manage permission for a pallet and extrinsic.
-    */
+    /// Verify the ability to manage the access to a pallets extrinsics.
+    /// this is used for managing `execute` and `manage` privileges for a pallet
+    /// _root_, Admins will bypass this check,
+    /// people in the `manage` group can pass this verification
     pub fn verify_manage_access(
         signer: T::AccountId,
         pallet: Vec<u8>,
@@ -398,7 +412,6 @@ impl<T: Config> Pallet<T> {
         Self::verify_access(signer, pallet, extrinsic, Permission::Manage)
     }
 
-    /** Private helper method for access authentication */
     fn verify_access(
         signer: T::AccountId,
         pallet: Vec<u8>,
@@ -428,7 +441,7 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
-    // Expose the verify_execute_access to other pallets
+    /// Expose the verify_execute_access to other pallets
     fn verify_execute_access(
         account_id: T::AccountId,
         pallet: Vec<u8>,
@@ -458,7 +471,7 @@ impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
 /// Inside the `validate` extrinsic of the `SignedExtension` trait,
 /// we check if the sender (origin) of the extrinsic has the execute permission or not.
 /// The validation happens at the transaction queue level,
-///  and the extrinsics are filtered out before they hit the pallet logic.
+/// and the extrinsics are filtered out before they hit the pallet logic.
 
 /// The `Authorize` struct.
 #[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
@@ -505,7 +518,7 @@ where
         Ok(())
     }
 
-    /** Used to drop the transaction at the transaction pool level and prevents a transaction from being gossiped */
+    /// Used to drop the transaction at the transaction pool level and prevents a transaction from being gossiped
     fn validate(
         &self,
         who: &Self::AccountId,
@@ -531,7 +544,7 @@ where
         }
     }
 
-    /** Use to hook in before the transaction runs */
+    /// Use to hook in before the transaction runs
     fn pre_dispatch(
         self,
         who: &Self::AccountId,
