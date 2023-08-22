@@ -97,6 +97,10 @@ impl WithAccessControlContext {
     pub fn admin_signer(self: &Self) -> RuntimeOrigin {
         RuntimeOrigin::signed(*self.admins.first().clone().unwrap())
     }
+
+    pub fn admin_id(self: &Self) -> AccountId {
+        *self.admins.first().clone().unwrap()
+    }
 }
 
 pub fn pallet_name() -> Vec<u8> {

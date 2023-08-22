@@ -11,23 +11,33 @@ use test_context::test_context;
 #[test]
 fn authorized_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let expected_action = access_control::Action {
+        let expected_execute_action = access_control::Action {
             pallet: mock::pallet_name(),
             extrinsic: mock::fake_extrinsic(),
             permission: Permission::Execute,
         };
 
+        let expected_manage_action = access_control::Action {
+            pallet: mock::pallet_name(),
+            extrinsic: mock::fake_extrinsic(),
+            permission: Permission::Manage,
+        };
+
         assert_ok!(AccessControl::create_access_control(
             ctx.admin_signer(),
-            expected_action.pallet.clone(),
-            expected_action.extrinsic.clone(),
-            expected_action.permission.clone()
+            mock::pallet_name(),
+            mock::fake_extrinsic(),
         ));
 
         assert_eq!(
-            AccessControl::access_controls(expected_action),
-            Some(vec![])
-        )
+            AccessControl::access_controls(expected_execute_action),
+            Some(vec![ctx.admin_id()])
+        );
+
+        assert_eq!(
+            AccessControl::access_controls(expected_manage_action),
+            Some(vec![ctx.admin_id()])
+        );
     });
 }
 
@@ -43,7 +53,6 @@ fn deny_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
                 signer,
                 mock::pallet_name(),
                 mock::fake_extrinsic(),
-                Permission::Execute
             ),
             Error::<Test>::AccessDenied
         );
@@ -64,7 +73,6 @@ fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
             RuntimeOrigin::root(),
             expected_action.pallet.clone(),
             expected_action.extrinsic.clone(),
-            expected_action.permission.clone()
         ));
 
         assert_eq!(
@@ -94,7 +102,6 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
                 unauthorized_signer,
                 new_action.pallet.clone(),
                 new_action.extrinsic.clone(),
-                new_action.permission.clone()
             ),
             Error::<Test>::AccessDenied
         );
@@ -115,24 +122,19 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
             RuntimeOrigin::signed(account_to_add),
             new_action.pallet.clone(),
             new_action.extrinsic.clone(),
-            new_action.permission.clone()
         ));
 
         assert_eq!(
             AccessControl::access_controls(new_action.clone()),
-            Some(vec![])
+            Some(vec![account_to_add])
         );
 
-        // ensure that the new account is not a manager
-        // ensure that an account with the execution permissions cannot make themselves a manager
-        assert_noop!(
-            AccessControl::grant_access(
-                RuntimeOrigin::signed(account_to_add),
-                account_to_add,
-                new_action.clone()
-            ),
-            Error::<Test>::AccessDenied
-        );
+        // creator of the action should be a manager as well
+        assert_ok!(AccessControl::grant_access(
+            RuntimeOrigin::signed(account_to_add),
+            account_to_add,
+            new_action.clone()
+        ));
     });
 }
 
@@ -178,7 +180,6 @@ fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
                 ctx.admin_signer(),
                 mock::pallet_name(),
                 mock::fake_extrinsic(),
-                Permission::Execute
             ),
             Error::<Test>::AccessDenied
         );
@@ -212,7 +213,6 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
                 ctx.admin_signer(),
                 mock::pallet_name(),
                 mock::fake_extrinsic(),
-                Permission::Execute
             ),
             Error::<Test>::AccessDenied
         );

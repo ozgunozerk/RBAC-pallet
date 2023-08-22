@@ -137,12 +137,9 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /** Create Access Control for a specific extrinsic on a pallet.
-            The caller must have permissions to update the c
-            pallet_name: Vec<u8> | "PalletTemplate"
-            pallet_extrinsic: Vec<u8> | "do_something"
-            permission: Permission | "Execute" or "Manage"
-            When the Manage permission has not been created, only an sudo can add execution accounts
+        /**
+            Create Access Control for a specific extrinsic on a pallet.
+            The caller must have permissions in `access_control` action
         */
         #[pallet::call_index(0)]
         #[pallet::weight(10_000_000)]
@@ -150,40 +147,51 @@ pub mod pallet {
             origin: OriginFor<T>,
             pallet_name: Vec<u8>,
             pallet_extrinsic: Vec<u8>,
-            permission: Permission,
         ) -> DispatchResult {
             // Check Authorization
-            match T::AdminOrigin::ensure_origin(origin.clone()) {
+            let maybe_account = match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
                     log::info!("Admin privileges recognized");
+                    None
                 }
                 Err(_) => {
                     let signer = ensure_signed(origin.clone())?;
 
                     match Self::verify_execute_access(
-                        signer,
+                        signer.clone(),
                         "AccessControl".as_bytes().to_vec(),
                         "create_access_control".as_bytes().to_vec(),
-                        Some(true),
                     ) {
-                        Ok(()) => {
+                        Ok(_) => {
                             log::info!("Successfully verified access");
+                            Some(signer)
                         }
                         Err(_e) => {
                             return Err(Error::<T>::AccessDenied.into());
                         }
                     }
                 }
-            }
-
-            let action = Action {
-                pallet: pallet_name,
-                extrinsic: pallet_extrinsic,
-                permission,
             };
 
-            let accounts: Vec<T::AccountId> = Vec::new();
-            AccessControls::<T>::insert(action, accounts);
+            let execute_action = Action {
+                pallet: pallet_name.clone(),
+                extrinsic: pallet_extrinsic.clone(),
+                permission: Permission::Execute,
+            };
+
+            let manage_action = Action {
+                pallet: pallet_name,
+                extrinsic: pallet_extrinsic,
+                permission: Permission::Manage,
+            };
+
+            let accounts = match maybe_account {
+                Some(account) => vec![account],
+                None => vec![],
+            };
+
+            AccessControls::<T>::insert(execute_action, accounts.clone());
+            AccessControls::<T>::insert(manage_action, accounts);
 
             Ok(())
         }
@@ -197,7 +205,9 @@ pub mod pallet {
         ) -> DispatchResult {
             // Check Authorization
             match T::AdminOrigin::ensure_origin(origin.clone()) {
-                Ok(_) => {}
+                Ok(_) => {
+                    log::info!("Admin privileges recognized");
+                }
                 Err(_) => {
                     let signer = ensure_signed(origin)?;
 
@@ -206,7 +216,9 @@ pub mod pallet {
                         action.pallet.clone(),
                         action.extrinsic.clone(),
                     ) {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            log::info!("Successfully verified access");
+                        }
                         Err(_e) => {
                             return Err(Error::<T>::AccessDenied.into());
                         }
@@ -241,7 +253,9 @@ pub mod pallet {
         ) -> DispatchResult {
             // Check Authorization
             match T::AdminOrigin::ensure_origin(origin.clone()) {
-                Ok(_) => {}
+                Ok(_) => {
+                    log::info!("Admin privileges recognized");
+                }
                 Err(_) => {
                     let signer = ensure_signed(origin)?;
 
@@ -250,7 +264,9 @@ pub mod pallet {
                         action.pallet.clone(),
                         action.extrinsic.clone(),
                     ) {
-                        Ok(_) => {}
+                        Ok(_) => {
+                            log::info!("Successfully verified access");
+                        }
                         Err(_e) => {
                             return Err(Error::<T>::AccessDenied.into());
                         }
@@ -311,7 +327,6 @@ impl<T: Config> Pallet<T> {
         account_id: T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
-        requires_access_control: Option<bool>,
     ) -> Result<(), Error<T>> {
         let action = Action {
             pallet,
@@ -319,7 +334,7 @@ impl<T: Config> Pallet<T> {
             permission: Permission::Execute,
         };
 
-        Self::verify_access(account_id, action, requires_access_control)
+        Self::verify_access(account_id, action)
     }
 
     /** Verify the ability to manage the access to a pallets extrinsics.
@@ -336,15 +351,11 @@ impl<T: Config> Pallet<T> {
             permission: Permission::Manage,
         };
 
-        Self::verify_access(signer, action, Some(true))
+        Self::verify_access(signer, action)
     }
 
     /** Private helper method for access authentication */
-    fn verify_access(
-        signer: T::AccountId,
-        action: Action,
-        requires_access_control: Option<bool>,
-    ) -> Result<(), Error<T>> {
+    fn verify_access(signer: T::AccountId, action: Action) -> Result<(), Error<T>> {
         match <AccessControls<T>>::get(&action) {
             Some(accounts) => {
                 if accounts.contains(&signer) {
@@ -354,11 +365,8 @@ impl<T: Config> Pallet<T> {
                 }
             }
             None => {
-                if requires_access_control.unwrap_or(false) {
-                    return Err(Error::<T>::AccessDenied.into());
-                } else {
-                    return Ok(());
-                }
+                // everyone can create new actions
+                return Ok(());
             }
         }
     }
@@ -371,7 +379,7 @@ impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), TraitError> {
-        match Self::verify_execute_access(account_id, pallet, extrinsic, Some(true)) {
+        match Self::verify_execute_access(account_id, pallet, extrinsic) {
             Ok(()) => Ok(()),
             Err(_e) => Err(TraitError::AccessDenied),
         }
@@ -453,7 +461,6 @@ where
             who.clone(),
             call_metadata.pallet_name.as_bytes().to_vec(),
             call_metadata.function_name.as_bytes().to_vec(),
-            None,
         ) {
             Ok(_) => Ok(Default::default()),
             Err(e) => {
