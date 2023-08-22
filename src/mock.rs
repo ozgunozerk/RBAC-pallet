@@ -100,12 +100,12 @@ impl TestContext for WithAccessControlContext {
 }
 
 impl WithAccessControlContext {
-    pub fn admin_signer(self: &Self) -> RuntimeOrigin {
-        RuntimeOrigin::signed(*self.admins.first().clone().unwrap())
+    pub fn admin_signer(&self) -> RuntimeOrigin {
+        RuntimeOrigin::signed(*self.admins.first().unwrap())
     }
 
-    pub fn admin_id(self: &Self) -> AccountId {
-        *self.admins.first().clone().unwrap()
+    pub fn admin_id(&self) -> AccountId {
+        *self.admins.first().unwrap()
     }
 }
 

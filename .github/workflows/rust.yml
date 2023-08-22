@@ -2,21 +2,38 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
   pull_request:
-    branches: [ "main" ]
+    paths-ignore:
+      - "**.md"
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  clippy-fmt-test:
+    strategy:
+      fail-fast: false
 
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - name: git checkout
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # @v3.1.0
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: Run tests
+        run: cargo test
+
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Check Documentation
+        run: cargo doc --locked --all --no-deps
+        env:
+          RUSTDOCFLAGS: "-D rustdoc::broken-intra-doc-links -D rustdoc::private_intra_doc_links"

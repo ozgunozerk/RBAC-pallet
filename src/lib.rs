@@ -12,9 +12,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
-
 use codec::{Decode, Encode};
 use frame_system::{ensure_signed, pallet_prelude::OriginFor};
 
@@ -34,17 +31,12 @@ use sp_runtime::{
 use sp_std::prelude::*;
 use traits::{TraitError, VerifyAccess};
 
-#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum Permission {
-    Execute = 0,
-    Manage = 1,
-}
-
-impl Default for Permission {
-    fn default() -> Self {
-        Permission::Execute
-    }
+    #[default]
+    Execute,
+    Manage,
 }
 
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
@@ -241,8 +233,8 @@ pub mod pallet {
 
             Self::deposit_event(Event::AccessGranted(
                 account_id.clone(),
-                action.pallet.clone().into(),
-                action.extrinsic.clone().into(),
+                action.pallet.clone(),
+                action.extrinsic.clone(),
             ));
 
             match AccessControls::<T>::get(action.clone()) {
@@ -254,7 +246,7 @@ pub mod pallet {
                 None => return Err(Error::<T>::ActionNotFound.into()),
             }
 
-            return Ok(());
+            Ok(())
         }
 
         #[pallet::call_index(2)]
@@ -289,19 +281,17 @@ pub mod pallet {
 
             Self::deposit_event(Event::AccessRevoked(
                 account_id.clone(),
-                action.pallet.clone().into(),
-                action.extrinsic.clone().into(),
+                action.pallet.clone(),
+                action.extrinsic.clone(),
             ));
 
             match AccessControls::<T>::get(action.clone()) {
                 Some(mut accounts) => {
                     accounts.retain(|stored_account| stored_account != &account_id);
                     AccessControls::<T>::insert(action.clone(), accounts);
-                    return Ok(());
+                    Ok(())
                 }
-                None => {
-                    return Err(Error::<T>::ActionNotFound.into());
-                }
+                None => Err(Error::<T>::ActionNotFound.into()),
             }
         }
 
@@ -368,17 +358,17 @@ impl<T: Config> Pallet<T> {
             permission,
         };
 
-        match <AccessControls<T>>::get(&action) {
+        match <AccessControls<T>>::get(action) {
             Some(accounts) => {
                 if accounts.contains(&signer) {
-                    return Ok(());
+                    Ok(())
                 } else {
-                    return Err(Error::<T>::AccessDenied.into());
+                    Err(Error::<T>::AccessDenied)
                 }
             }
             None => {
                 // everyone can create new actions
-                return Ok(());
+                Ok(())
             }
         }
     }
@@ -421,6 +411,12 @@ impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
 #[derive(Encode, Decode, Clone, Eq, PartialEq, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Authorize<T: Config + Send + Sync>(sp_std::marker::PhantomData<T>);
+
+impl<T: Config + Send + Sync> Default for Authorize<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 /// Debug impl for the `Authorize` struct.
 impl<T: Config + Send + Sync> sp_std::fmt::Debug for Authorize<T> {

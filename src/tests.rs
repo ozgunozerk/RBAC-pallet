@@ -109,7 +109,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
         // Add the new account to the admins who can create access controls
         assert_ok!(AccessControl::grant_access(
             ctx.admin_signer(),
-            account_to_add.clone(),
+            account_to_add,
             action.clone()
         ));
 
@@ -147,7 +147,7 @@ fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
 
         assert_ok!(AccessControl::grant_access(
             RuntimeOrigin::root(),
-            account_to_add.clone(),
+            account_to_add,
             action.clone()
         ));
 
@@ -161,7 +161,7 @@ fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
 #[test]
 fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_remove = ctx.admins.first().clone().unwrap();
+        let account_to_remove = ctx.admins.first().unwrap();
 
         let action = access_control::Action {
             pallet: mock::pallet_name(),
@@ -190,7 +190,7 @@ fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
 #[test]
 fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_remove = ctx.admins.first().clone().unwrap();
+        let account_to_remove = ctx.admins.first().unwrap();
 
         let action = access_control::Action {
             pallet: mock::pallet_name(),
@@ -206,7 +206,7 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
 
         assert!(!AccessControl::access_controls(action.clone())
             .unwrap()
-            .contains(&account_to_remove));
+            .contains(account_to_remove));
 
         assert_noop!(
             AccessControl::create_access_control(
@@ -227,7 +227,7 @@ fn add_admin(ctx: &mut WithAccessControlContext) {
 
         assert_ok!(AccessControl::add_admin(
             RuntimeOrigin::root(),
-            account_to_add.clone()
+            account_to_add
         ));
 
         assert_eq!(AccessControl::admins(account_to_add), Some(()));
@@ -241,7 +241,7 @@ fn add_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
         let account_to_add = mock::new_account();
 
         assert_noop!(
-            AccessControl::add_admin(ctx.admin_signer(), account_to_add.clone()),
+            AccessControl::add_admin(ctx.admin_signer(), account_to_add),
             BadOrigin
         );
     });
@@ -255,7 +255,7 @@ fn revoke_admin(ctx: &mut WithAccessControlContext) {
 
         assert_ok!(AccessControl::revoke_admin(
             RuntimeOrigin::root(),
-            account_to_remove.clone()
+            *account_to_remove
         ));
 
         assert_eq!(AccessControl::admins(account_to_remove), None)
@@ -269,7 +269,7 @@ fn revoke_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
         let account_to_remove = ctx.admins.first().unwrap();
 
         assert_noop!(
-            AccessControl::revoke_admin(ctx.admin_signer(), account_to_remove.clone()),
+            AccessControl::revoke_admin(ctx.admin_signer(), *account_to_remove),
             BadOrigin
         );
     });
