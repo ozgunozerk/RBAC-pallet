@@ -125,6 +125,7 @@ pub mod pallet {
     #[pallet::generate_deposit(pub(super) fn deposit_event)]
     pub enum Event<T: Config> {
         ActionCreated(Vec<u8>, Vec<u8>),
+        ActionDeleted(Vec<u8>, Vec<u8>),
         AccessRevoked(T::AccountId, Vec<u8>, Vec<u8>),
         AccessGranted(T::AccountId, Vec<u8>, Vec<u8>),
         AdminAdded(T::AccountId),
@@ -203,6 +204,58 @@ pub mod pallet {
 
         #[pallet::call_index(1)]
         #[pallet::weight(10_000_000)]
+        pub fn delete_access_control(
+            origin: OriginFor<T>,
+            pallet_name: Vec<u8>,
+            pallet_extrinsic: Vec<u8>,
+        ) -> DispatchResult {
+            // Check Authorization
+            match T::AdminOrigin::ensure_origin(origin.clone()) {
+                Ok(_) => {
+                    log::info!("Admin privileges recognized");
+                    None
+                }
+                Err(_) => {
+                    let signer = ensure_signed(origin.clone())?;
+
+                    match Self::verify_manage_access(
+                        signer.clone(),
+                        pallet_name.clone(),
+                        pallet_extrinsic.clone(),
+                    ) {
+                        Ok(_) => {
+                            log::info!("Successfully verified access");
+                            Some(signer)
+                        }
+                        Err(_e) => {
+                            return Err(Error::<T>::AccessDenied.into());
+                        }
+                    }
+                }
+            };
+
+            let execute_action = Action {
+                pallet: pallet_name.clone(),
+                extrinsic: pallet_extrinsic.clone(),
+                permission: Permission::Execute,
+            };
+
+            let manage_action = Action {
+                pallet: pallet_name.clone(),
+                extrinsic: pallet_extrinsic.clone(),
+                permission: Permission::Manage,
+            };
+
+            Self::deposit_event(Event::ActionDeleted(pallet_name, pallet_extrinsic));
+
+            AccessControls::<T>::remove(execute_action);
+            AccessControls::<T>::remove(manage_action);
+
+            Ok(())
+        }
+
+        #[pallet::call_index(2)]
+        #[pallet::weight(10_000_000)]
         pub fn grant_access(
             origin: OriginFor<T>,
             account_id: T::AccountId,
@@ -249,7 +302,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(2)]
+        #[pallet::call_index(3)]
         #[pallet::weight(10_000_000)]
         pub fn revoke_access(
             origin: OriginFor<T>,
@@ -299,7 +352,7 @@ pub mod pallet {
         /// Admins have access to execute and manage all pallets.
         ///
         /// Only _root_ can add a Admin.
-        #[pallet::call_index(3)]
+        #[pallet::call_index(4)]
         #[pallet::weight(10_000_000)]
         pub fn add_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin)?;
@@ -309,7 +362,7 @@ pub mod pallet {
             Ok(())
         }
 
-        #[pallet::call_index(4)]
+        #[pallet::call_index(5)]
         #[pallet::weight(10_000_000)]
         pub fn revoke_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin)?;
@@ -367,7 +420,7 @@ impl<T: Config> Pallet<T> {
                 }
             }
             None => {
-                // everyone can create new actions
+                // means this action is not yet created, no further checks to be applied
                 Ok(())
             }
         }
