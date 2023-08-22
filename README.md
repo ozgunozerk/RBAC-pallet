@@ -139,8 +139,7 @@ fn do_something(origin: OriginFor<T>) -> DispatchResult {
     let signer = ensure_signed(origin);
 
     // 2. ensure that the signer has authentication access and access control was setup.
-    //   - If the access_control was configured correctly the the SignedExtension will reject the transaction before it was added to the transaction pool,
-    ///    however adding this additional check ensures that in the case of the access control not been setup correctly the extrinsic will fail.
+    //   - If the access_control was configured correctly then the SignedExtension will reject the transaction before it was added to the transaction pool, however adding this additional check ensures that in the case of the access control not been setup correctly the extrinsic will fail.
     //   - This also serves as development documentation that this extrinsic is meant to have AccessControl at the transaction pool level.
     match T::VerifyAccess::verify_execute_access(
 		signer,
