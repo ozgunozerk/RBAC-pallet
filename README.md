@@ -1,4 +1,7 @@
 # Substrate Access Control Pallet
+
+### Including a working example with [substrate-node-rbac](https://github.com/ozgunozerk/substrate-node-rbac)
+
 Forked from [access-control](https://github.com/WunderbarNetwork/access-control)
 Which is another fork from [substrate-rbac](https://github.com/gautamdhameja/substrate-rbac)
 
@@ -11,28 +14,34 @@ Introduce the `VerifyAccess` type into the config of your custom pallets and cal
 
 ## Usage
 
-* Add the module's dependency in the `Cargo.toml` of your `runtime` directory. Make sure to enter the correct path or git url of the pallet as per your setup.
+1. Add the module's dependency in the `Cargo.toml` of your `runtime` directory. Make sure to enter the correct path or git url of the pallet as per your setup.
 
 ```toml
 access-control = { version = "0.1.0", default-features = false, git = "https://github.com/ozgunozerk/RBAC-pallet" }
 ```
 
-* Declare the pallet in your `runtime/src/lib.rs`.
+2. again, in `cargo.toml`, add this entry to the `std` feature:
+```toml
+"access-control/std",
+```
+
+3. Declare the pallet in your `runtime/src/lib.rs`.
 
 ```rust
 // runtime/src/lib.rs
 pub use access_control;
+```
 
-// ...
-
+4. add `access_control::Config` implementation for `Runtime`
+```rust
 impl access_control::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AdminOrigin = EnsureRoot<AccountId>;
 }
+```
 
-// ...
-
-// Add access_control to create_transaction function (skip if it does not exist)
+5. if you have `create_transaction`, do the following (I don't have this)
+```rust
 fn create_transaction(...) -> Option<(...)> {
     // ...
 
@@ -41,10 +50,10 @@ fn create_transaction(...) -> Option<(...)> {
         access_control::Authorize::<Runtime>::new(),
     );
 }
+```
 
-// ...
-
-// Add access_control to the runtime
+6. Add access_control to the runtime
+```rust
 construct_runtime!(
     pub enum Runtime where
         Block = Block,
@@ -56,10 +65,9 @@ construct_runtime!(
         // ...
     }
 );
-
-// ...
-
-// Add the module's `Authorize` type in the `SignedExtra` checklist.
+```
+7. Optional: Add the module's `Authorize` type in the `SignedExtra` checklist. This is optional
+```rust
 pub type SignedExtra = (
     // ...
    access_control::Authorize<Runtime>,
@@ -68,7 +76,7 @@ pub type SignedExtra = (
 //...
 ```
 
-* Add a genesis configuration for the module in the `node/src/chain_spec.rs` file.
+8. Add a genesis configuration for the module in the `node/src/chain_spec.rs` file.
 
 ```rust
 /// node/src/chain_spec.rs
@@ -80,10 +88,9 @@ use node_template_runtime::{ // replace it with your node name
 }
 
 // ...
-
+// inside this function, add the below
 fn testnet_genesis(...) -> GenesisConfig {
-    let authorized_accounts =
-		vec![get_account_id_from_seed("Alice"), get_account_id_from_seed("Bob")];
+    let authorized_accounts = vec![get_account_id_from_seed::<sr25519::Public>("Alice")];
 
 	// Create initial access controls including the AccessControl Pallet
 	let actions = vec![
@@ -103,9 +110,12 @@ fn testnet_genesis(...) -> GenesisConfig {
 	];
 
 	// Create the AccessControl struct for access controls and accounts who can action.
-	let access_controls: Vec<AccessControl<AccountId>> = actions
+	let access_controls: Vec<access_control::AccessControl<AccountId>> = actions
 		.iter()
-		.map(|action| (action.clone(), authorized_accounts.clone()))
+		.map(|action| access_control::AccessControl {
+			action: action.clone(),
+			accounts: authorized_accounts.clone(),
+		})
 		.collect::<Vec<_>>();
 
     // ...
@@ -118,14 +128,27 @@ fn testnet_genesis(...) -> GenesisConfig {
 ```
 
 ### Access Control for custom pallets
-* Add access_control to your custom pallets Cargo.toml
-* Followed by implementing your access control logic
 
+1. add this to the `cargo.toml` of the pallet
+```toml
+access-control = { version = "0.1.0", default-features = false, git = "https://github.com/ozgunozerk/RBAC-pallet" }
+```
+
+2. add this entry to the `std` feature:
+```toml
+"access-control/std",
+```
+
+
+3. Import `access-control`s trait inside `pub mod pallet`
 ```rust
-use access_control::traits::VerifyAccess;
-
+pub mod pallet {
+    use access_control::traits::VerifyAccess;
 // ...
+```
 
+4. add the necessary type for loose coupling
+```rust
 #[pallet::config]
 pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
     // ...
@@ -133,38 +156,45 @@ pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
     /// Add VerifyAccess trait to the pallet.
     type VerifyAccess: VerifyAccess<Self::AccountId>;
 }
-
-
-
-#[pallet:weight(0)]
-fn do_something(origin: OriginFor<T>) -> DispatchResult {
-    // 1. Ensure that the extrinsic was signed.
-    let signer = ensure_signed(origin);
-
-    // 2. ensure that the signer has authentication access and access control was setup.
-    //   - If the access_control was configured correctly then the SignedExtension will reject the transaction before it was added to the transaction pool, however adding this additional check ensures that in the case of the access control not been setup correctly the extrinsic will fail.
-    //   - This also serves as development documentation that this extrinsic is meant to have AccessControl at the transaction pool level.
-    match T::VerifyAccess::verify_execute_access(
-		signer,
-		"MyCustomPallet".as_bytes().to_vec(),
-		"do_something".as_bytes().to_vec(),
-	) {
-		Ok(_) => {
-            // Additional logic
-		},
-            // Return an Error
-			Err(_e) => return Err(frame_support::error::BadOrigin.into()),
-		}
-
-    // custom pallet logic ...
-}
 ```
 
-### Followed by runtime compilation
+5. now we can use the `verify_execute_access` in business logic (below is an example)
+```rust
+#[pallet::call_index(0)]
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		pub fn do_something(origin: OriginFor<T>, something: u32) -> DispatchResult {
+			// Check that the extrinsic was signed and get the signer.
+			// This function will return an error if the extrinsic is not signed.
+			// https://docs.substrate.io/main-docs/build/origins/
+			let who = ensure_signed(origin)?;
 
+			match T::VerifyAccess::verify_execute_access(
+				&who,
+				"MyCustomPallet".as_bytes().to_vec(),
+				"do_something".as_bytes().to_vec(),
+			) {
+				Ok(_) => {
+					// Update storage.
+					<Something<T>>::put(something);
+
+					// Emit an event.
+					Self::deposit_event(Event::SomethingStored { something, who });
+					// Return a successful DispatchResultWithPostInfo
+					Ok(())
+				},
+				Err(_) => return Err(frame_support::error::BadOrigin.into()),
+			}
+		}
+```
+
+It is also encouraged to have a `rust-toolchain.toml` file for your node to prevent conflicts between rust versions.
+
+Build with:
 ```bash
 cargo build --release
 ```
+
+For a working example, check [substrate-node-rbac](https://github.com/ozgunozerk/substrate-node-rbac)
 
 ## Disclaimer
 

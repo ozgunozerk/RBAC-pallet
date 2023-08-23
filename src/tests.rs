@@ -222,13 +222,6 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
             AccessControl::access_controls(new_action.clone()),
             Some(vec![account_to_add])
         );
-
-        // creator of the action should be a manager as well
-        assert_ok!(AccessControl::grant_access(
-            RuntimeOrigin::signed(account_to_add),
-            account_to_add,
-            new_action.clone()
-        ));
     });
 }
 
