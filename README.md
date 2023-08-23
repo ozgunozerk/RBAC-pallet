@@ -66,7 +66,7 @@ construct_runtime!(
     }
 );
 ```
-7. Optional: Add the module's `Authorize` type in the `SignedExtra` checklist. This is optional
+7. Optional: Add the module's `Authorize` type in the `SignedExtra` checklist.
 ```rust
 pub type SignedExtra = (
     // ...
@@ -140,7 +140,7 @@ access-control = { version = "0.1.0", default-features = false, git = "https://g
 ```
 
 
-3. Import `access-control`s trait inside `pub mod pallet`
+3. in `lib.rs` of the pallet: import `access-control`s trait inside `pub mod pallet`
 ```rust
 pub mod pallet {
     use access_control::traits::VerifyAccess;
@@ -185,6 +185,17 @@ pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
 				Err(_) => return Err(frame_support::error::BadOrigin.into()),
 			}
 		}
+```
+
+6. we have to update `Config` implementation for `Runtime` in `runtime/src/lib.rs` as well:
+```rust
+/// Configure the pallet-template in pallets/template.
+impl pallet_template::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+
+	// add this line
+	type VerifyAccess = AccessControl;
+}
 ```
 
 It is also encouraged to have a `rust-toolchain.toml` file for your node to prevent conflicts between rust versions.
