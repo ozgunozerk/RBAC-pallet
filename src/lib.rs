@@ -387,7 +387,7 @@ pub mod pallet {
         /// Add a new Super Admin.
         /// Admins have access to execute and manage all pallets.
         ///
-        /// Only _root_ and Admins can add an Admin.
+        /// Only _root_ can add an Admin.
         #[pallet::call_index(4)]
         #[pallet::weight(10_000_000)]
         pub fn add_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
@@ -404,7 +404,7 @@ pub mod pallet {
 
         /// Revokes admin privileges
         ///
-        /// Only _root_ and Admins can revoke an admin privilege
+        /// Only _root_ can revoke an admin privilege
         #[pallet::call_index(5)]
         #[pallet::weight(10_000_000)]
         pub fn revoke_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
@@ -425,7 +425,7 @@ impl<T: Config> Pallet<T> {
     /// Verify that account can execute an extrinsic on a pallet.
     /// Access is denied when then a pallet and an extrinsic has a access_control,
     /// and the account does not have permission to execute.
-    /// _root_, Admins will bypass this check,
+    /// _root_ will bypass this check,
     /// people in the `execute` group can pass this verification
     pub fn verify_execute_access(
         signer: &T::AccountId,
@@ -437,7 +437,7 @@ impl<T: Config> Pallet<T> {
 
     /// Verify the ability to manage the access to a pallets extrinsics.
     /// this is used for managing `execute` and `manage` privileges for a pallet
-    /// _root_, Admins will bypass this check,
+    /// _root_ will bypass this check,
     /// people in the `manage` group can pass this verification
     pub fn verify_manage_access(
         signer: &T::AccountId,
