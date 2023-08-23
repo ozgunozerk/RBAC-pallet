@@ -150,6 +150,11 @@ pub mod pallet {
     pub enum Error<T> {
         AccessDenied,
         ActionNotFound,
+        UserNotFound,
+        UserAlreadyExists,
+        AdminNotFound,
+        AdminAlreadyExists,
+        ActionAlreadyExists,
     }
 
     #[pallet::call]
@@ -174,7 +179,7 @@ pub mod pallet {
                     let signer = ensure_signed(origin.clone())?;
 
                     match Self::verify_execute_access(
-                        signer.clone(),
+                        &signer,
                         "AccessControl".as_bytes().to_vec(),
                         "create_access_control".as_bytes().to_vec(),
                     ) {
@@ -195,11 +200,19 @@ pub mod pallet {
                 permission: Permission::Execute,
             };
 
+            if AccessControls::<T>::contains_key(execute_action.clone()) {
+                return Err(Error::<T>::ActionAlreadyExists.into());
+            }
+
             let manage_action = Action {
                 pallet: pallet_name.clone(),
                 extrinsic: pallet_extrinsic.clone(),
                 permission: Permission::Manage,
             };
+
+            if AccessControls::<T>::contains_key(manage_action.clone()) {
+                return Err(Error::<T>::ActionAlreadyExists.into());
+            }
 
             let accounts = match maybe_account {
                 Some(account) => vec![account],
@@ -230,7 +243,7 @@ pub mod pallet {
                     let signer = ensure_signed(origin.clone())?;
 
                     match Self::verify_manage_access(
-                        signer.clone(),
+                        &signer,
                         pallet_name.clone(),
                         pallet_extrinsic.clone(),
                     ) {
@@ -251,11 +264,19 @@ pub mod pallet {
                 permission: Permission::Execute,
             };
 
+            if !AccessControls::<T>::contains_key(execute_action.clone()) {
+                return Err(Error::<T>::ActionNotFound.into());
+            }
+
             let manage_action = Action {
                 pallet: pallet_name.clone(),
                 extrinsic: pallet_extrinsic.clone(),
                 permission: Permission::Manage,
             };
+
+            if !AccessControls::<T>::contains_key(manage_action.clone()) {
+                return Err(Error::<T>::ActionNotFound.into());
+            }
 
             Self::deposit_event(Event::ActionDeleted(pallet_name, pallet_extrinsic));
 
@@ -280,7 +301,7 @@ pub mod pallet {
                     let signer = ensure_signed(origin)?;
 
                     match Self::verify_manage_access(
-                        signer,
+                        &signer,
                         action.pallet.clone(),
                         action.extrinsic.clone(),
                     ) {
@@ -302,6 +323,9 @@ pub mod pallet {
 
             match AccessControls::<T>::get(action.clone()) {
                 Some(mut accounts) => {
+                    if accounts.contains(&account_id) {
+                        return Err(Error::<T>::UserAlreadyExists.into());
+                    }
                     log::info!("Accounts: {:?}", accounts);
                     accounts.push(account_id.clone());
                     AccessControls::<T>::insert(action.clone(), accounts);
@@ -327,7 +351,7 @@ pub mod pallet {
                     let signer = ensure_signed(origin)?;
 
                     match Self::verify_manage_access(
-                        signer,
+                        &signer,
                         action.pallet.clone(),
                         action.extrinsic.clone(),
                     ) {
@@ -349,6 +373,9 @@ pub mod pallet {
 
             match AccessControls::<T>::get(action.clone()) {
                 Some(mut accounts) => {
+                    if !accounts.contains(&account_id) {
+                        return Err(Error::<T>::UserNotFound.into());
+                    }
                     accounts.retain(|stored_account| stored_account != &account_id);
                     AccessControls::<T>::insert(action.clone(), accounts);
                     Ok(())
@@ -366,6 +393,10 @@ pub mod pallet {
         pub fn add_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin)?;
 
+            if <Admins<T>>::contains_key(&account_id) {
+                return Err(Error::<T>::AdminAlreadyExists.into());
+            }
+
             <Admins<T>>::insert(&account_id, ());
             Self::deposit_event(Event::AdminAdded(account_id));
             Ok(())
@@ -378,6 +409,10 @@ pub mod pallet {
         #[pallet::weight(10_000_000)]
         pub fn revoke_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin)?;
+
+            if !<Admins<T>>::contains_key(&account_id) {
+                return Err(Error::<T>::AdminNotFound.into());
+            }
 
             <Admins<T>>::remove(&account_id);
             Self::deposit_event(Event::AdminRevoked(account_id));
@@ -393,7 +428,7 @@ impl<T: Config> Pallet<T> {
     /// _root_, Admins will bypass this check,
     /// people in the `execute` group can pass this verification
     pub fn verify_execute_access(
-        signer: T::AccountId,
+        signer: &T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), Error<T>> {
@@ -405,7 +440,7 @@ impl<T: Config> Pallet<T> {
     /// _root_, Admins will bypass this check,
     /// people in the `manage` group can pass this verification
     pub fn verify_manage_access(
-        signer: T::AccountId,
+        signer: &T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), Error<T>> {
@@ -413,7 +448,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn verify_access(
-        signer: T::AccountId,
+        signer: &T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
         permission: Permission,
@@ -426,7 +461,7 @@ impl<T: Config> Pallet<T> {
 
         match <AccessControls<T>>::get(action) {
             Some(accounts) => {
-                if accounts.contains(&signer) {
+                if accounts.contains(signer) {
                     Ok(())
                 } else {
                     Err(Error::<T>::AccessDenied)
@@ -443,7 +478,7 @@ impl<T: Config> Pallet<T> {
 impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
     /// Expose the verify_execute_access to other pallets
     fn verify_execute_access(
-        account_id: T::AccountId,
+        account_id: &T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), TraitError> {
@@ -527,12 +562,12 @@ where
         _len: usize,
     ) -> TransactionValidity {
         let call_metadata = call.get_call_metadata();
-        if <Admins<T>>::contains_key(who.clone()) {
+        if <Admins<T>>::contains_key(who) {
             return Ok(Default::default());
         }
 
         match <Pallet<T>>::verify_execute_access(
-            who.clone(),
+            who,
             call_metadata.pallet_name.as_bytes().to_vec(),
             call_metadata.function_name.as_bytes().to_vec(),
         ) {
