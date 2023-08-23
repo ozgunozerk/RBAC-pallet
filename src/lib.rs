@@ -219,10 +219,10 @@ pub mod pallet {
                 None => Vec::new(),
             };
 
-            Self::deposit_event(Event::ActionCreated(pallet_name, pallet_extrinsic));
-
             AccessControls::<T>::insert(execute_action, accounts.clone());
             AccessControls::<T>::insert(manage_action, accounts);
+
+            Self::deposit_event(Event::ActionCreated(pallet_name, pallet_extrinsic));
 
             Ok(())
         }
@@ -278,10 +278,10 @@ pub mod pallet {
                 return Err(Error::<T>::ActionNotFound.into());
             }
 
-            Self::deposit_event(Event::ActionDeleted(pallet_name, pallet_extrinsic));
-
             AccessControls::<T>::remove(execute_action);
             AccessControls::<T>::remove(manage_action);
+
+            Self::deposit_event(Event::ActionDeleted(pallet_name, pallet_extrinsic));
 
             Ok(())
         }
@@ -315,12 +315,6 @@ pub mod pallet {
                 }
             }
 
-            Self::deposit_event(Event::AccessGranted(
-                account_id.clone(),
-                action.pallet.clone(),
-                action.extrinsic.clone(),
-            ));
-
             match AccessControls::<T>::get(action.clone()) {
                 Some(mut accounts) => {
                     if accounts.contains(&account_id) {
@@ -329,11 +323,17 @@ pub mod pallet {
                     log::info!("Accounts: {:?}", accounts);
                     accounts.push(account_id.clone());
                     AccessControls::<T>::insert(action.clone(), accounts);
+
+                    Self::deposit_event(Event::AccessGranted(
+                        account_id.clone(),
+                        action.pallet.clone(),
+                        action.extrinsic.clone(),
+                    ));
+
+                    Ok(())
                 }
                 None => return Err(Error::<T>::ActionNotFound.into()),
             }
-
-            Ok(())
         }
 
         #[pallet::call_index(3)]
@@ -365,12 +365,6 @@ pub mod pallet {
                 }
             }
 
-            Self::deposit_event(Event::AccessRevoked(
-                account_id.clone(),
-                action.pallet.clone(),
-                action.extrinsic.clone(),
-            ));
-
             match AccessControls::<T>::get(action.clone()) {
                 Some(mut accounts) => {
                     if !accounts.contains(&account_id) {
@@ -378,6 +372,13 @@ pub mod pallet {
                     }
                     accounts.retain(|stored_account| stored_account != &account_id);
                     AccessControls::<T>::insert(action.clone(), accounts);
+
+                    Self::deposit_event(Event::AccessRevoked(
+                        account_id.clone(),
+                        action.pallet.clone(),
+                        action.extrinsic.clone(),
+                    ));
+
                     Ok(())
                 }
                 None => Err(Error::<T>::ActionNotFound.into()),
