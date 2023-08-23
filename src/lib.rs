@@ -56,8 +56,8 @@ pub struct Action {
 #[derive(PartialEq, Eq, Clone, RuntimeDebug, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct AccessControl<T> {
-    action: Action,
-    accounts: Vec<T>,
+    pub action: Action,
+    pub accounts: Vec<T>,
 }
 
 /// RBAC pallet
@@ -203,7 +203,7 @@ pub mod pallet {
 
             let accounts = match maybe_account {
                 Some(account) => vec![account],
-                None => vec![],
+                None => Vec::new(),
             };
 
             Self::deposit_event(Event::ActionCreated(pallet_name, pallet_extrinsic));

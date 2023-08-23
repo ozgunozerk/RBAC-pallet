@@ -14,7 +14,7 @@ Introduce the `VerifyAccess` type into the config of your custom pallets and cal
 * Add the module's dependency in the `Cargo.toml` of your `runtime` directory. Make sure to enter the correct path or git url of the pallet as per your setup.
 
 ```toml
-access-control = { version = "0.1.0", default-features = false, git = "https://github.com/WunderbarNetwork/access-control" }
+access-control = { version = "0.1.0", default-features = false, git = "https://github.com/ozgunozerk/RBAC-pallet" }
 ```
 
 * Declare the pallet in your `runtime/src/lib.rs`.
@@ -32,7 +32,7 @@ impl access_control::Config for Runtime {
 
 // ...
 
-// Add access_control to create_transaction function
+// Add access_control to create_transaction function (skip if it does not exist)
 fn create_transaction(...) -> Option<(...)> {
     // ...
 
@@ -68,13 +68,13 @@ pub type SignedExtra = (
 //...
 ```
 
-* Add a genesis configuration for the module in the `src/chain_spec.rs` file.
+* Add a genesis configuration for the module in the `node/src/chain_spec.rs` file.
 
 ```rust
 /// node/src/chain_spec.rs
 
 // Import access_control and AccessControlConfig from the runtime
-use _runtime::{
+use node_template_runtime::{ // replace it with your node name
     // ...
     access_control, AccessControlConfig
 }
@@ -82,28 +82,31 @@ use _runtime::{
 // ...
 
 fn testnet_genesis(...) -> GenesisConfig {
-    let authorized_accounts = vec![
-        get_account_id_from_seed("Alice"),
-        get_account_id_from_seed("Bob"),
-    ]
+    let authorized_accounts =
+		vec![get_account_id_from_seed("Alice"), get_account_id_from_seed("Bob")];
 
-    // Create initial access controls including the AccessControl Pallet
-    let actions = vec![
-            // Create both Execute and Manage controls for the AccessControl Pallets `create_access_control` extrinsic.
-            access_control::Action {
-                pallet: "AccessControl".as_bytes().to_vec(),
-                extrinsic: "create_access_control".as_bytes().to_vec(),
-            },
+	// Create initial access controls including the AccessControl Pallet
+	let actions = vec![
+		// Create both Execute and Manage controls for the AccessControl Pallets
+		// `create_access_control` extrinsic.
+		access_control::Action {
+			pallet: "AccessControl".as_bytes().to_vec(),
+			extrinsic: "create_access_control".as_bytes().to_vec(),
+			permission: access_control::Permission::Execute,
+		},
+		access_control::Action {
+			pallet: "AccessControl".as_bytes().to_vec(),
+			extrinsic: "create_access_control".as_bytes().to_vec(),
+			permission: access_control::Permission::Manage,
+		},
+		// ... additional Actions ...
+	];
 
-            // ... additional Actions ...
-    ];
-
-    // Create the AccessControl struct for access controls and accounts who can action.
-	let access_controls: Vec<AccessControl<AccountId>> =
-        actions
-			.iter()
-			.map(|action| (action.clone(), authorized_accounts.clone()))
-			.collect::<Vec<_>>();
+	// Create the AccessControl struct for access controls and accounts who can action.
+	let access_controls: Vec<AccessControl<AccountId>> = actions
+		.iter()
+		.map(|action| (action.clone(), authorized_accounts.clone()))
+		.collect::<Vec<_>>();
 
     // ...
 
@@ -127,7 +130,7 @@ use access_control::traits::VerifyAccess;
 pub trait Config: frame_system::Config + CreateSignedTransaction<Call<Self>> {
     // ...
 
-    // Add VerifyAccess trait to the pallet.
+    /// Add VerifyAccess trait to the pallet.
     type VerifyAccess: VerifyAccess<Self::AccountId>;
 }
 
@@ -147,7 +150,6 @@ fn do_something(origin: OriginFor<T>) -> DispatchResult {
 		"do_something".as_bytes().to_vec(),
 	) {
 		Ok(_) => {
-			info!("Successfully verified access")
             // Additional logic
 		},
             // Return an Error

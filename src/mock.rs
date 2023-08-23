@@ -127,9 +127,7 @@ pub fn new_account() -> sp_core::sr25519::Public {
 }
 
 // Build genesis storage according to the mock runtime.
-pub fn new_test_ext(
-    access_controls_ctx: &mut WithAccessControlContext,
-) -> sp_io::TestExternalities {
+pub fn new_test_ext(access_controls_ctx: &WithAccessControlContext) -> sp_io::TestExternalities {
     let mut t = frame_system::GenesisConfig::default()
         .build_storage::<Test>()
         .unwrap();
