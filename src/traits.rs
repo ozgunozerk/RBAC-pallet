@@ -9,7 +9,7 @@ pub enum TraitError {
 /// Additionally when using the trait, if the pallet extrinsic is not found access will be denied.
 pub trait VerifyAccess<AccountId> {
     fn verify_execute_access(
-        account_id: &AccountId,
+        account_id: AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), TraitError>;

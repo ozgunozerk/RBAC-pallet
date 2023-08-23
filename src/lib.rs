@@ -478,11 +478,11 @@ impl<T: Config> Pallet<T> {
 impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
     /// Expose the verify_execute_access to other pallets
     fn verify_execute_access(
-        account_id: &T::AccountId,
+        account_id: T::AccountId,
         pallet: Vec<u8>,
         extrinsic: Vec<u8>,
     ) -> Result<(), TraitError> {
-        match Self::verify_execute_access(account_id, pallet, extrinsic) {
+        match Self::verify_execute_access(&account_id, pallet, extrinsic) {
             Ok(()) => Ok(()),
             Err(_e) => Err(TraitError::AccessDenied),
         }
