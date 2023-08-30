@@ -401,8 +401,7 @@ fn max_account_per_action_count(ctx: &mut WithAccessControlContext) {
 
             let accounts_with_access = AccessControl::access_controls(action.clone()).unwrap();
 
-            // recall, we assign an account to the action at genesis, so there is already an account here
-            if (count + 1) <= max_account_limit() {
+            if count <= max_account_limit() {
                 assert_ok!(result);
                 assert!(accounts_with_access.contains(&account_to_add));
                 true
@@ -414,13 +413,13 @@ fn max_account_per_action_count(ctx: &mut WithAccessControlContext) {
         };
 
         // Try to add accounts up to the maximum limit
-        for i in 1..max_account_limit() {
+        for i in 1..=max_account_limit() {
             // for limit, it is human counting, start from 1 instead of 0
             assert!(try_grant_access(i));
         }
 
         // Try to add one more account, expecting failure
-        assert!(!try_grant_access(max_account_limit()));
+        assert!(!try_grant_access(max_account_limit() + 1));
     });
 }
 
