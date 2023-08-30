@@ -24,7 +24,7 @@ impl Get<u32> for MaxAdmins {
 pub struct MaxControls;
 impl Get<u32> for MaxControls {
     fn get() -> u32 {
-        3
+        4
     }
 }
 
@@ -148,6 +148,14 @@ pub fn fake_extrinsic() -> Vec<u8> {
 
 pub fn max_account_limit() -> u32 {
     MaxAccounts::get()
+}
+
+pub fn max_admin_limit() -> u32 {
+    MaxAdmins::get()
+}
+
+pub fn max_control_limit() -> u32 {
+    MaxControls::get()
 }
 
 pub fn new_account() -> sp_core::sr25519::Public {
