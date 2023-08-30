@@ -26,7 +26,7 @@ use scale_info::TypeInfo;
 use sp_runtime::{
     traits::{DispatchInfoOf, Dispatchable, SignedExtension},
     transaction_validity::{InvalidTransaction, TransactionValidity, TransactionValidityError},
-    RuntimeDebug,
+    BoundedVec, RuntimeDebug,
 };
 use sp_std::prelude::*;
 use traits::{TraitError, VerifyAccess};
@@ -68,6 +68,8 @@ pub struct AccessControl<T> {
 /// - admins
 #[frame_support::pallet]
 pub mod pallet {
+    use sp_core::bounded_vec;
+
     use super::*;
     use frame_support::{
         dispatch::DispatchResult,
@@ -77,6 +79,15 @@ pub mod pallet {
 
     #[pallet::config]
     pub trait Config: frame_system::Config {
+        /// Maximum number of admins allowed
+        type MaxAdmins: Get<u32>;
+
+        /// Maximum number of controls allowed
+        type MaxControls: Get<u32>;
+
+        /// Maximum number of accounts per actions
+        type MaxAccountsPerAction: Get<u32>;
+
         /// The Event type.
         type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -97,22 +108,27 @@ pub mod pallet {
     /// Store access controls for Executing and managing a specific extrinsic on a pallet.
     #[pallet::storage]
     #[pallet::getter(fn access_controls)]
-    pub type AccessControls<T: Config> =
-        StorageMap<_, Blake2_128Concat, Action, Vec<T::AccountId>, OptionQuery>;
+    pub type AccessControls<T: Config> = StorageMap<
+        _,
+        Blake2_128Concat,
+        Action,
+        BoundedVec<T::AccountId, T::MaxAccountsPerAction>,
+        OptionQuery,
+    >;
 
     /// Config for genesis that will bootstrap other permissions
     #[pallet::genesis_config]
     pub struct GenesisConfig<T: Config> {
-        pub admins: Vec<T::AccountId>,
-        pub access_controls: Vec<AccessControl<T::AccountId>>,
+        pub admins: BoundedVec<T::AccountId, T::MaxAdmins>,
+        pub access_controls: BoundedVec<AccessControl<T::AccountId>, T::MaxControls>,
     }
 
     #[cfg(feature = "std")]
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
             Self {
-                admins: Vec::new(),
-                access_controls: Vec::new(),
+                admins: bounded_vec![],
+                access_controls: bounded_vec![],
             }
         }
     }
@@ -126,10 +142,17 @@ pub mod pallet {
             }
 
             for access_control in &self.access_controls {
-                <AccessControls<T>>::insert(
-                    access_control.action.clone(),
-                    access_control.accounts.clone(),
-                );
+                match access_control.accounts.clone().try_into() {
+                    Ok(bounded) => {
+                        <AccessControls<T>>::insert::<
+                            Action,
+                            BoundedVec<T::AccountId, T::MaxAccountsPerAction>,
+                        >(access_control.action.clone(), bounded);
+                    }
+                    Err(err) => {
+                        log::error!("accounts probably hold more than maximum account numbers. Skipping adding accounts: {err:?}");
+                    }
+                };
             }
         }
     }
@@ -155,6 +178,9 @@ pub mod pallet {
         AdminNotFound,
         AdminAlreadyExists,
         ActionAlreadyExists,
+        MaxAccountLimit,
+        MaxAdminLimit,
+        MaxActionLimit,
     }
 
     #[pallet::call]
@@ -214,9 +240,9 @@ pub mod pallet {
                 return Err(Error::<T>::ActionAlreadyExists.into());
             }
 
-            let accounts = match maybe_account {
-                Some(account) => vec![account],
-                None => Vec::new(),
+            let accounts: BoundedVec<T::AccountId, T::MaxAccountsPerAction> = match maybe_account {
+                Some(account) => bounded_vec![account],
+                None => bounded_vec![],
             };
 
             AccessControls::<T>::insert(execute_action, accounts.clone());
@@ -321,7 +347,14 @@ pub mod pallet {
                         return Err(Error::<T>::UserAlreadyExists.into());
                     }
                     log::info!("Accounts: {:?}", accounts);
-                    accounts.push(account_id.clone());
+                    match accounts.try_push(account_id.clone()) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            log::error!("for action: {action:?}, max account limit has reached, cannot add new account");
+                            return Err(Error::<T>::MaxAccountLimit.into());
+                        }
+                    };
+
                     AccessControls::<T>::insert(action.clone(), accounts);
 
                     Self::deposit_event(Event::AccessGranted(
@@ -496,7 +529,7 @@ impl<T: Config> VerifyAccess<T::AccountId> for Pallet<T> {
             permission: Permission::Execute,
         };
 
-        Self::access_controls(key)
+        Self::access_controls(key).map(|bounded_vec| bounded_vec.into())
     }
 }
 
