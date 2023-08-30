@@ -198,7 +198,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let maybe_account = match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
-                    log::info!("Admin privileges recognized");
+                    log::info!("Root privileges recognized");
                     None
                 }
                 Err(_) => {
@@ -267,7 +267,7 @@ pub mod pallet {
         ) -> DispatchResult {
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
-                    log::info!("Admin privileges recognized");
+                    log::info!("Root privileges recognized");
                     None
                 }
                 Err(_) => {
@@ -326,7 +326,7 @@ pub mod pallet {
         ) -> DispatchResult {
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
-                    log::info!("Admin privileges recognized");
+                    log::info!("Root privileges recognized");
                 }
                 Err(_) => {
                     let signer = ensure_signed(origin)?;
@@ -383,7 +383,7 @@ pub mod pallet {
         ) -> DispatchResult {
             match T::AdminOrigin::ensure_origin(origin.clone()) {
                 Ok(_) => {
-                    log::info!("Admin privileges recognized");
+                    log::info!("Root privileges recognized");
                 }
                 Err(_) => {
                     let signer = ensure_signed(origin)?;
@@ -469,7 +469,7 @@ impl<T: Config> Pallet<T> {
     /// Access is denied when then a pallet and an extrinsic has a access_control,
     /// and the account does not have permission to execute.
     /// _root_ will bypass this check,
-    /// people in the `execute` group can pass this verification
+    /// people in the `execute` group and admins can pass this verification
     pub fn verify_execute_access(
         signer: &T::AccountId,
         pallet: Vec<u8>,
@@ -481,7 +481,7 @@ impl<T: Config> Pallet<T> {
     /// Verify the ability to manage the access to a pallets extrinsics.
     /// this is used for managing `execute` and `manage` privileges for a pallet
     /// _root_ will bypass this check,
-    /// people in the `manage` group can pass this verification
+    /// people in the `manage` group and admins can pass this verification
     pub fn verify_manage_access(
         signer: &T::AccountId,
         pallet: Vec<u8>,
@@ -496,6 +496,11 @@ impl<T: Config> Pallet<T> {
         extrinsic: Vec<u8>,
         permission: Permission,
     ) -> Result<(), Error<T>> {
+        // grant access to all admins
+        if <Admins<T>>::contains_key(signer) {
+            return Ok(());
+        }
+
         let action = Action {
             pallet,
             extrinsic,

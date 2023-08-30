@@ -59,7 +59,7 @@ fn deny_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
 
 #[test_context(WithAccessControlContext)]
 #[test]
-fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
+fn admin_override_create_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let expected_action = access_control::Action {
             pallet: pallet_name(),
@@ -225,7 +225,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
 
 #[test_context(WithAccessControlContext)]
 #[test]
-fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
+fn admin_override_assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_add = new_account();
         let action = ctx.access_controls.first().unwrap().action.clone();
@@ -246,25 +246,38 @@ fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
 #[test]
 fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_remove = ctx.admins.first().unwrap();
+        let manager_account = new_account();
+        let account_to_add_then_remove = new_account();
 
         let action = access_control::Action {
             pallet: pallet_name(),
             extrinsic: extrinsic_name(),
-            permission: access_control::Permission::Execute,
+            permission: access_control::Permission::Manage,
         };
 
-        assert_ok!(AccessControl::revoke_access(
+        assert_ok!(AccessControl::grant_access(
             ctx.admin_signer(),
-            *account_to_remove,
+            manager_account,
+            action.clone()
+        ));
+
+        assert_ok!(AccessControl::grant_access(
+            ctx.admin_signer(),
+            account_to_add_then_remove,
+            action.clone()
+        ));
+
+        assert_ok!(AccessControl::revoke_access(
+            RuntimeOrigin::signed(manager_account),
+            account_to_add_then_remove,
             action.clone()
         ));
 
         assert_noop!(
-            AccessControl::create_access_control(
-                ctx.admin_signer(),
-                pallet_name(),
-                fake_extrinsic(),
+            AccessControl::revoke_access(
+                RuntimeOrigin::signed(account_to_add_then_remove),
+                manager_account,
+                action.clone()
             ),
             Error::<Test>::AccessDenied
         );
@@ -275,7 +288,7 @@ fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
 #[test]
 fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_remove = ctx.admins.first().unwrap();
+        let account_to_add_then_remove = new_account();
 
         let action = access_control::Action {
             pallet: pallet_name(),
@@ -283,19 +296,31 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
             permission: access_control::Permission::Execute,
         };
 
+        assert_ok!(AccessControl::grant_access(
+            ctx.admin_signer(),
+            account_to_add_then_remove,
+            action.clone()
+        ));
+
+        assert_ok!(AccessControl::create_access_control(
+            RuntimeOrigin::signed(account_to_add_then_remove),
+            pallet_name(),
+            fake_extrinsic(),
+        ));
+
         assert_ok!(AccessControl::revoke_access(
-            RuntimeOrigin::root(),
-            *account_to_remove,
+            ctx.admin_signer(),
+            account_to_add_then_remove,
             action.clone()
         ));
 
         assert!(!AccessControl::access_controls(action.clone())
             .unwrap()
-            .contains(account_to_remove));
+            .contains(&account_to_add_then_remove));
 
         assert_noop!(
             AccessControl::create_access_control(
-                ctx.admin_signer(),
+                RuntimeOrigin::signed(account_to_add_then_remove),
                 pallet_name(),
                 fake_extrinsic(),
             ),
@@ -321,7 +346,7 @@ fn add_admin(ctx: &mut WithAccessControlContext) {
 
 #[test_context(WithAccessControlContext)]
 #[test]
-fn add_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
+fn add_admin_is_root_only(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_add = new_account();
 
@@ -349,7 +374,7 @@ fn revoke_admin(ctx: &mut WithAccessControlContext) {
 
 #[test_context(WithAccessControlContext)]
 #[test]
-fn revoke_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
+fn revoke_admin_is_root_only(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let account_to_remove = ctx.admins.first().unwrap();
 
