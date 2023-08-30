@@ -30,17 +30,46 @@ access-control = { version = "0.1.0", default-features = false, git = "https://g
 ```rust
 // runtime/src/lib.rs
 pub use access_control;
+
+use sp_core::Get; // also add this if you don't have it
 ```
 
-4. add `access_control::Config` implementation for `Runtime`
+4. add the following implementations:
+```rust
+pub struct MaxAdmins;
+impl Get<u32> for MaxAdmins {
+	fn get() -> u32 {
+		2 // your custom config
+	}
+}
+
+pub struct MaxControls;
+impl Get<u32> for MaxControls {
+	fn get() -> u32 {
+		4 // your custom config
+	}
+}
+
+pub struct MaxAccounts;
+impl Get<u32> for MaxAccounts {
+	fn get() -> u32 {
+		4 // your custom config
+	}
+}
+```
+
+5. add `access_control::Config` implementation for `Runtime`
 ```rust
 impl access_control::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AdminOrigin = EnsureRoot<AccountId>;
+	type MaxAccountsPerAction = MaxAccounts;
+	type MaxAdmins = MaxAdmins;
+	type MaxControls = MaxControls;
 }
 ```
 
-5. if you have `create_transaction`, do the following (I don't have this)
+6. if you have `create_transaction`, do the following (I don't have this)
 ```rust
 fn create_transaction(...) -> Option<(...)> {
     // ...
@@ -52,7 +81,7 @@ fn create_transaction(...) -> Option<(...)> {
 }
 ```
 
-6. Add access_control to the runtime
+7. Add access_control to the runtime
 ```rust
 construct_runtime!(
     pub enum Runtime where
@@ -66,7 +95,7 @@ construct_runtime!(
     }
 );
 ```
-7. Optional: Add the module's `Authorize` type in the `SignedExtra` checklist.
+8. Optional: Add the module's `Authorize` type in the `SignedExtra` checklist.
 ```rust
 pub type SignedExtra = (
     // ...
@@ -76,7 +105,7 @@ pub type SignedExtra = (
 //...
 ```
 
-8. Add a genesis configuration for the module in the `node/src/chain_spec.rs` file.
+9. Add a genesis configuration for the module in the `node/src/chain_spec.rs` file.
 
 ```rust
 /// node/src/chain_spec.rs
@@ -86,44 +115,45 @@ use node_template_runtime::{ // replace it with your node name
     // ...
     access_control, AccessControlConfig
 }
+use sp_core::bounded_vec; // add this if you don't have it
 
 // ...
 // inside this function, add the below
 fn testnet_genesis(...) -> GenesisConfig {
-    let authorized_accounts = vec![get_account_id_from_seed::<sr25519::Public>("Alice")];
+    let admin_account = get_account_id_from_seed::<sr25519::Public>("Alice");
 
 	// Create initial access controls including the AccessControl Pallet
-	let actions = vec![
-		// Create both Execute and Manage controls for the AccessControl Pallets
-		// `create_access_control` extrinsic.
-		access_control::Action {
-			pallet: "AccessControl".as_bytes().to_vec(),
-			extrinsic: "create_access_control".as_bytes().to_vec(),
-			permission: access_control::Permission::Execute,
+
+	// Create both Execute and Manage controls for the AccessControl Pallets
+	// `create_access_control` extrinsic.
+	let execute_action = access_control::Action {
+		pallet: "AccessControl".as_bytes().to_vec(),
+		extrinsic: "create_access_control".as_bytes().to_vec(),
+		permission: access_control::Permission::Execute,
+	};
+	let manage_action = access_control::Action {
+		pallet: "AccessControl".as_bytes().to_vec(),
+		extrinsic: "create_access_control".as_bytes().to_vec(),
+		permission: access_control::Permission::Manage,
+	};
+	// ... additional Actions ...
+
+	GenesisConfig {
+		// ... ///
+		access_control: AccessControlConfig {
+			admins: bounded_vec![admin_account.clone()],
+			access_controls: bounded_vec![
+				access_control::AccessControl {
+					action: execute_action,
+					accounts: vec![admin_account.clone()],
+				},
+				access_control::AccessControl {
+					action: manage_action,
+					accounts: vec![admin_account],
+				},
+			],
 		},
-		access_control::Action {
-			pallet: "AccessControl".as_bytes().to_vec(),
-			extrinsic: "create_access_control".as_bytes().to_vec(),
-			permission: access_control::Permission::Manage,
-		},
-		// ... additional Actions ...
-	];
-
-	// Create the AccessControl struct for access controls and accounts who can action.
-	let access_controls: Vec<access_control::AccessControl<AccountId>> = actions
-		.iter()
-		.map(|action| access_control::AccessControl {
-			action: action.clone(),
-			accounts: authorized_accounts.clone(),
-		})
-		.collect::<Vec<_>>();
-
-    // ...
-
-    GenesisConfig {
-        /// ...
-        access_control: AccessControlConfig { admins: authorized_accounts.clone() , access_controls }
-    }
+	}
 }
 ```
 
