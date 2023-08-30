@@ -113,11 +113,11 @@ impl TestContext for WithAccessControlContext {
             access_controls: bounded_vec![
                 access_control::AccessControl {
                     action: execute_action,
-                    accounts: vec![admin_account],
+                    accounts: vec![],
                 },
                 access_control::AccessControl {
                     action: manage_action,
-                    accounts: vec![admin_account],
+                    accounts: vec![],
                 },
             ],
         }
