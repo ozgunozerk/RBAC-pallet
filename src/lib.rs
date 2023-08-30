@@ -143,11 +143,11 @@ pub mod pallet {
 
             for access_control in &self.access_controls {
                 match access_control.accounts.clone().try_into() {
-                    Ok(bounded) => {
+                    Ok(bounded_accounts) => {
                         <AccessControls<T>>::insert::<
                             Action,
                             BoundedVec<T::AccountId, T::MaxAccountsPerAction>,
-                        >(access_control.action.clone(), bounded);
+                        >(access_control.action.clone(), bounded_accounts);
                     }
                     Err(err) => {
                         log::error!("accounts probably hold more than maximum account numbers. Skipping adding accounts: {err:?}");
@@ -180,7 +180,7 @@ pub mod pallet {
         ActionAlreadyExists,
         MaxAccountLimit,
         MaxAdminLimit,
-        MaxActionLimit,
+        MaxControlLimit,
     }
 
     #[pallet::call]
@@ -219,6 +219,11 @@ pub mod pallet {
                     }
                 }
             };
+
+            // times 2, because each control consists of 2 actions
+            if (AccessControls::<T>::iter().count() as u32) >= T::MaxControls::get() * 2 {
+                return Err(Error::<T>::MaxControlLimit.into());
+            }
 
             let execute_action = Action {
                 pallet: pallet_name.clone(),
@@ -426,6 +431,10 @@ pub mod pallet {
         #[pallet::weight(10_000_000)]
         pub fn add_admin(origin: OriginFor<T>, account_id: T::AccountId) -> DispatchResult {
             T::AdminOrigin::ensure_origin(origin)?;
+
+            if (<Admins<T>>::iter().count() as u32) >= T::MaxAdmins::get() {
+                return Err(Error::<T>::MaxAdminLimit.into());
+            }
 
             if <Admins<T>>::contains_key(&account_id) {
                 return Err(Error::<T>::AdminAlreadyExists.into());

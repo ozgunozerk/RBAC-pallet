@@ -1,6 +1,6 @@
 use crate::{self as access_control};
 use crate::{
-    mock::{self, WithAccessControlContext, *},
+    mock::{WithAccessControlContext, *},
     Error, Permission,
 };
 use frame_support::error::BadOrigin;
@@ -14,21 +14,21 @@ use test_context::test_context;
 fn authorized_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let expected_execute_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: Permission::Execute,
         };
 
         let expected_manage_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: Permission::Manage,
         };
 
         assert_ok!(AccessControl::create_access_control(
             ctx.admin_signer(),
-            mock::pallet_name(),
-            mock::fake_extrinsic(),
+            pallet_name(),
+            fake_extrinsic(),
         ));
 
         assert_eq!(
@@ -47,15 +47,11 @@ fn authorized_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
 #[test]
 fn deny_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let another_account = mock::new_account();
+        let another_account = new_account();
         let signer = RuntimeOrigin::signed(another_account);
 
         assert_noop!(
-            AccessControl::create_access_control(
-                signer,
-                mock::pallet_name(),
-                mock::fake_extrinsic(),
-            ),
+            AccessControl::create_access_control(signer, pallet_name(), fake_extrinsic(),),
             Error::<Test>::AccessDenied
         );
     });
@@ -66,8 +62,8 @@ fn deny_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
 fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
         let expected_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: Permission::Execute,
         };
 
@@ -88,12 +84,12 @@ fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
 #[test]
 fn delete_action(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
+        let account_to_add = new_account();
         let action = ctx.access_controls.first().unwrap().action.clone();
 
         let new_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: access_control::Permission::Execute,
         };
 
@@ -131,13 +127,13 @@ fn delete_action(ctx: &mut WithAccessControlContext) {
 #[test]
 fn delete_action_unauthorized(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
-        let unauthorized_signer = RuntimeOrigin::signed(mock::new_account());
+        let account_to_add = new_account();
+        let unauthorized_signer = RuntimeOrigin::signed(new_account());
         let action = ctx.access_controls.first().unwrap().action.clone();
 
         let new_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: access_control::Permission::Execute,
         };
 
@@ -182,13 +178,13 @@ fn delete_action_unauthorized(ctx: &mut WithAccessControlContext) {
 #[test]
 fn assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
+        let account_to_add = new_account();
         let unauthorized_signer = RuntimeOrigin::signed(account_to_add);
         let action = ctx.access_controls.first().unwrap().action.clone();
 
         let new_action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::fake_extrinsic(),
+            pallet: pallet_name(),
+            extrinsic: fake_extrinsic(),
             permission: access_control::Permission::Execute,
         };
 
@@ -231,7 +227,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
 #[test]
 fn sudo_override_assign_access_control(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
+        let account_to_add = new_account();
         let action = ctx.access_controls.first().unwrap().action.clone();
 
         assert_ok!(AccessControl::grant_access(
@@ -253,8 +249,8 @@ fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
         let account_to_remove = ctx.admins.first().unwrap();
 
         let action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::extrinsic_name(),
+            pallet: pallet_name(),
+            extrinsic: extrinsic_name(),
             permission: access_control::Permission::Execute,
         };
 
@@ -267,8 +263,8 @@ fn revoke_access_for_an_account(ctx: &mut WithAccessControlContext) {
         assert_noop!(
             AccessControl::create_access_control(
                 ctx.admin_signer(),
-                mock::pallet_name(),
-                mock::fake_extrinsic(),
+                pallet_name(),
+                fake_extrinsic(),
             ),
             Error::<Test>::AccessDenied
         );
@@ -282,8 +278,8 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
         let account_to_remove = ctx.admins.first().unwrap();
 
         let action = access_control::Action {
-            pallet: mock::pallet_name(),
-            extrinsic: mock::extrinsic_name(),
+            pallet: pallet_name(),
+            extrinsic: extrinsic_name(),
             permission: access_control::Permission::Execute,
         };
 
@@ -300,8 +296,8 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
         assert_noop!(
             AccessControl::create_access_control(
                 ctx.admin_signer(),
-                mock::pallet_name(),
-                mock::fake_extrinsic(),
+                pallet_name(),
+                fake_extrinsic(),
             ),
             Error::<Test>::AccessDenied
         );
@@ -312,7 +308,7 @@ fn sudo_override_revoke_access(ctx: &mut WithAccessControlContext) {
 #[test]
 fn add_admin(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
+        let account_to_add = new_account();
 
         assert_ok!(AccessControl::add_admin(
             RuntimeOrigin::root(),
@@ -327,7 +323,7 @@ fn add_admin(ctx: &mut WithAccessControlContext) {
 #[test]
 fn add_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
     new_test_ext(ctx).execute_with(|| {
-        let account_to_add = mock::new_account();
+        let account_to_add = new_account();
 
         assert_noop!(
             AccessControl::add_admin(ctx.admin_signer(), account_to_add),
@@ -372,7 +368,7 @@ fn max_account_per_action_count(ctx: &mut WithAccessControlContext) {
 
         // Helper function to attempt to grant access to a new account
         let try_grant_access = |count| {
-            let account_to_add = mock::new_account();
+            let account_to_add = new_account();
 
             // Attempt to grant access
             let result =
@@ -380,22 +376,92 @@ fn max_account_per_action_count(ctx: &mut WithAccessControlContext) {
 
             let accounts_with_access = AccessControl::access_controls(action.clone()).unwrap();
 
-            if count < max_account_limit() {
+            // recall, we assign an account to the action at genesis, so there is already an account here
+            if (count + 1) <= max_account_limit() {
                 assert_ok!(result);
                 assert!(accounts_with_access.contains(&account_to_add));
+                true
             } else {
                 assert_noop!(result, Error::<Test>::MaxAccountLimit);
                 assert!(!accounts_with_access.contains(&account_to_add));
+                false
             }
         };
 
         // Try to add accounts up to the maximum limit
         for i in 1..max_account_limit() {
-            // we start counting by 1 in this case
-            try_grant_access(i);
+            // for limit, it is human counting, start from 1 instead of 0
+            assert!(try_grant_access(i));
         }
 
         // Try to add one more account, expecting failure
-        try_grant_access(max_account_limit());
+        assert!(!try_grant_access(max_account_limit()));
+    });
+}
+
+#[test_context(WithAccessControlContext)]
+#[test]
+fn max_admin_count(ctx: &mut WithAccessControlContext) {
+    new_test_ext(ctx).execute_with(|| {
+        let try_add_admin = |count| {
+            let account_to_add = new_account();
+
+            let result = AccessControl::add_admin(RuntimeOrigin::root(), account_to_add);
+
+            // recall, we assign an admin at genesis
+            if (count + 1) <= max_admin_limit() {
+                assert_ok!(result);
+                assert_eq!(AccessControl::admins(account_to_add), Some(()));
+                true
+            } else {
+                assert_noop!(result, Error::<Test>::MaxAdminLimit);
+                assert_eq!(AccessControl::admins(account_to_add), None);
+                false
+            }
+        };
+
+        // Try to add admins up to the maximum limit
+        for i in 1..max_admin_limit() {
+            // for limit, it is human counting, start from 1 instead of 0
+            assert!(try_add_admin(i));
+        }
+
+        // Try to add one more admin, expecting failure
+        assert!(!try_add_admin(max_admin_limit()));
+    });
+}
+
+#[test_context(WithAccessControlContext)]
+#[test]
+fn max_control_count(ctx: &mut WithAccessControlContext) {
+    fn pallet_name_generator(count: u32) -> Vec<u8> {
+        (count.to_string() + "AccessControl").as_bytes().to_vec()
+    }
+    new_test_ext(ctx).execute_with(|| {
+        let try_add_control = |count| {
+            let result = AccessControl::create_access_control(
+                RuntimeOrigin::root(),
+                pallet_name_generator(count),
+                extrinsic_name(),
+            );
+
+            // recall, we assign a control at genesis
+            if (count + 1) <= max_control_limit() {
+                assert_ok!(result);
+                true
+            } else {
+                assert_noop!(result, Error::<Test>::MaxControlLimit);
+                false
+            }
+        };
+
+        // Try to add controls up to the maximum limit
+        for i in 1..max_control_limit() {
+            // for limit, it is human counting, start from 1 instead of 0
+            assert!(try_add_control(i));
+        }
+
+        // Try to add one more control, expecting failure
+        assert!(!try_add_control(max_control_limit() + 1));
     });
 }
