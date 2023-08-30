@@ -1,7 +1,8 @@
 use crate::{self as access_control};
 use frame_support::traits::{ConstU16, ConstU64, GenesisBuild};
+use frame_support::BoundedVec;
 use frame_system as system;
-use sp_core::{sr25519::Signature, Pair, H256};
+use sp_core::{bounded_vec, sr25519::Signature, Get, Pair, H256};
 use sp_runtime::{
     testing::Header,
     traits::{BlakeTwo256, IdentifyAccount, IdentityLookup, Verify},
@@ -12,6 +13,27 @@ use test_context::TestContext;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+pub struct MaxAdmins;
+impl Get<u32> for MaxAdmins {
+    fn get() -> u32 {
+        2
+    }
+}
+
+pub struct MaxControls;
+impl Get<u32> for MaxControls {
+    fn get() -> u32 {
+        3
+    }
+}
+
+pub struct MaxAccounts;
+impl Get<u32> for MaxAccounts {
+    fn get() -> u32 {
+        4
+    }
+}
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -55,13 +77,16 @@ impl system::Config for Test {
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
 impl access_control::Config for Test {
+    type MaxAdmins = MaxAdmins;
+    type MaxControls = MaxControls;
+    type MaxAccountsPerAction = MaxAccounts;
     type RuntimeEvent = RuntimeEvent;
     type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 pub struct WithAccessControlContext {
-    pub admins: Vec<AccountId>,
-    pub access_controls: Vec<access_control::AccessControl<AccountId>>,
+    pub admins: BoundedVec<AccountId, MaxAdmins>,
+    pub access_controls: BoundedVec<access_control::AccessControl<AccountId>, MaxControls>,
 }
 
 impl TestContext for WithAccessControlContext {
@@ -84,8 +109,8 @@ impl TestContext for WithAccessControlContext {
         };
 
         WithAccessControlContext {
-            admins: vec![admin_account],
-            access_controls: vec![
+            admins: bounded_vec![admin_account],
+            access_controls: bounded_vec![
                 access_control::AccessControl {
                     action: execute_action,
                     accounts: vec![admin_account],
@@ -119,6 +144,10 @@ pub fn extrinsic_name() -> Vec<u8> {
 
 pub fn fake_extrinsic() -> Vec<u8> {
     "fake_extrinsic".as_bytes().to_vec()
+}
+
+pub fn max_account_limit() -> u32 {
+    MaxAccounts::get()
 }
 
 pub fn new_account() -> sp_core::sr25519::Public {

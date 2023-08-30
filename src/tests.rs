@@ -5,6 +5,8 @@ use crate::{
 };
 use frame_support::error::BadOrigin;
 use frame_support::{assert_noop, assert_ok};
+use sp_core::bounded_vec;
+use std::convert::TryInto;
 use test_context::test_context;
 
 #[test_context(WithAccessControlContext)]
@@ -31,12 +33,12 @@ fn authorized_execution_of_an_extrinsic(ctx: &mut WithAccessControlContext) {
 
         assert_eq!(
             AccessControl::access_controls(expected_execute_action),
-            Some(vec![ctx.admin_id()])
+            Some(bounded_vec![ctx.admin_id()])
         );
 
         assert_eq!(
             AccessControl::access_controls(expected_manage_action),
-            Some(vec![ctx.admin_id()])
+            Some(bounded_vec![ctx.admin_id()])
         );
     });
 }
@@ -77,7 +79,7 @@ fn sudo_override_create_access_control(ctx: &mut WithAccessControlContext) {
 
         assert_eq!(
             AccessControl::access_controls(expected_action),
-            Some(vec![])
+            Some(bounded_vec![])
         )
     });
 }
@@ -111,7 +113,7 @@ fn delete_action(ctx: &mut WithAccessControlContext) {
 
         assert_eq!(
             AccessControl::access_controls(new_action.clone()),
-            Some(vec![account_to_add])
+            Some(bounded_vec![account_to_add])
         );
 
         // creator of the action should be able to delete the action itself
@@ -155,7 +157,7 @@ fn delete_action_unauthorized(ctx: &mut WithAccessControlContext) {
 
         assert_eq!(
             AccessControl::access_controls(new_action.clone()),
-            Some(vec![account_to_add])
+            Some(bounded_vec![account_to_add])
         );
 
         // without necessary privileges, one should not be able to delete the action
@@ -171,7 +173,7 @@ fn delete_action_unauthorized(ctx: &mut WithAccessControlContext) {
         // action should be still intact
         assert_eq!(
             AccessControl::access_controls(new_action),
-            Some(vec![account_to_add])
+            Some(bounded_vec![account_to_add])
         );
     });
 }
@@ -220,7 +222,7 @@ fn assign_access_control(ctx: &mut WithAccessControlContext) {
 
         assert_eq!(
             AccessControl::access_controls(new_action.clone()),
-            Some(vec![account_to_add])
+            Some(bounded_vec![account_to_add])
         );
     });
 }
@@ -359,5 +361,41 @@ fn revoke_admin_is_sudo_only(ctx: &mut WithAccessControlContext) {
             AccessControl::revoke_admin(ctx.admin_signer(), *account_to_remove),
             BadOrigin
         );
+    });
+}
+
+#[test_context(WithAccessControlContext)]
+#[test]
+fn max_account_per_action_count(ctx: &mut WithAccessControlContext) {
+    new_test_ext(ctx).execute_with(|| {
+        let action = ctx.access_controls.first().unwrap().action.clone();
+
+        // Helper function to attempt to grant access to a new account
+        let try_grant_access = |count| {
+            let account_to_add = mock::new_account();
+
+            // Attempt to grant access
+            let result =
+                AccessControl::grant_access(ctx.admin_signer(), account_to_add, action.clone());
+
+            let accounts_with_access = AccessControl::access_controls(action.clone()).unwrap();
+
+            if count < max_account_limit() {
+                assert_ok!(result);
+                assert!(accounts_with_access.contains(&account_to_add));
+            } else {
+                assert_noop!(result, Error::<Test>::MaxAccountLimit);
+                assert!(!accounts_with_access.contains(&account_to_add));
+            }
+        };
+
+        // Try to add accounts up to the maximum limit
+        for i in 1..max_account_limit() {
+            // we start counting by 1 in this case
+            try_grant_access(i);
+        }
+
+        // Try to add one more account, expecting failure
+        try_grant_access(max_account_limit());
     });
 }
