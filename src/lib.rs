@@ -68,8 +68,6 @@ pub struct AccessControl<T> {
 /// - admins
 #[frame_support::pallet]
 pub mod pallet {
-    use sp_core::bounded_vec;
-
     use super::*;
     use frame_support::{
         dispatch::DispatchResult,
@@ -126,9 +124,12 @@ pub mod pallet {
     #[cfg(feature = "std")]
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
+            let admins: BoundedVec<T::AccountId, T::MaxAdmins> = Default::default();
+            let access_controls: BoundedVec<AccessControl<T::AccountId>, T::MaxControls> =
+                Default::default();
             Self {
-                admins: bounded_vec![],
-                access_controls: bounded_vec![],
+                admins,
+                access_controls,
             }
         }
     }
@@ -246,8 +247,10 @@ pub mod pallet {
             }
 
             let accounts: BoundedVec<T::AccountId, T::MaxAccountsPerAction> = match maybe_account {
-                Some(account) => bounded_vec![account],
-                None => bounded_vec![],
+                Some(account) => vec![account]
+                    .try_into()
+                    .expect("1 element vec is always convertible"),
+                None => Default::default(),
             };
 
             AccessControls::<T>::insert(execute_action, accounts.clone());
