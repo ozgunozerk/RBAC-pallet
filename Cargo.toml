@@ -1,10 +1,11 @@
 [package]
 name = "access-control"
 version = "0.1.1"
-authors = ["Dan Henton"]
+authors = ["Ozgun Ozerk"]
 edition = "2018"
 license = "Apache-2.0"
-repository = "https://github.com/WunderbarNetwork/access-control"
+readme = "README.md"
+repository = "https://github.com/ozgunozerk/RBAC-pallet"
 
 [dependencies]
 log = { default-features = false, version = "0.4" }
