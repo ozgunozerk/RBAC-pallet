@@ -69,10 +69,7 @@ pub struct AccessControl<T> {
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
-    use frame_support::{
-        dispatch::DispatchResult,
-        pallet_prelude::{OptionQuery, *},
-    };
+    use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
     use sp_std::convert::TryInto;
 
     #[pallet::config]
@@ -106,13 +103,8 @@ pub mod pallet {
     /// Store access controls for Executing and managing a specific extrinsic on a pallet.
     #[pallet::storage]
     #[pallet::getter(fn access_controls)]
-    pub type AccessControls<T: Config> = StorageMap<
-        _,
-        Blake2_128Concat,
-        Action,
-        BoundedVec<T::AccountId, T::MaxAccountsPerAction>,
-        OptionQuery,
-    >;
+    pub type AccessControls<T: Config> =
+        StorageMap<_, Blake2_128Concat, Action, BoundedVec<T::AccountId, T::MaxAccountsPerAction>>;
 
     /// Config for genesis that will bootstrap other permissions
     #[pallet::genesis_config]
@@ -124,12 +116,9 @@ pub mod pallet {
     #[cfg(feature = "std")]
     impl<T: Config> Default for GenesisConfig<T> {
         fn default() -> Self {
-            let admins: BoundedVec<T::AccountId, T::MaxAdmins> = Default::default();
-            let access_controls: BoundedVec<AccessControl<T::AccountId>, T::MaxControls> =
-                Default::default();
             Self {
-                admins,
-                access_controls,
+                admins: Default::default(),
+                access_controls: Default::default(),
             }
         }
     }
@@ -250,7 +239,7 @@ pub mod pallet {
                 Some(account) => vec![account]
                     .try_into()
                     .expect("1 element vec is always convertible"),
-                None => Default::default(),
+                None => Default::default(), // in case of root, we don't add any accounts
             };
 
             AccessControls::<T>::insert(execute_action, accounts.clone());
